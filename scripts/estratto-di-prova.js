@@ -140,9 +140,14 @@ for (const [dc, dv, addebito, accredito, descrizione] of movimenti) {
     `<c r="A${n}" s="1"><v>${seriale(...dc)}</v></c>`,
     `<c r="B${n}" s="1"><v>${seriale(...dv)}</v></c>`,
   ];
-  if (addebito !== null) celle.push(`<c r="C${n}"><v>${addebito}</v></c>`);
-  if (accredito !== null) celle.push(`<c r="D${n}"><v>${accredito}</v></c>`);
-  celle.push(`<c r="E${n}" t="s"><v>${indiceDi.get(descrizione)}</v></c>`);
+  // La colonna senza valore esce come cella vuota auto-chiusa, che e' il modo
+  // in cui Excel la scrive davvero: e' proprio la forma su cui il lettore si
+  // rompeva, quindi il fixture deve contenerla.
+  celle.push(addebito !== null ? `<c r="C${n}"><v>${addebito}</v></c>` : '<c/>');
+  celle.push(accredito !== null ? `<c r="D${n}"><v>${accredito}</v></c>` : '<c/>');
+  // Anche la descrizione senza riferimento: certi export omettono `r`, e allora
+  // la posizione della cella e' l'unica cosa che dice a quale colonna appartiene.
+  celle.push(`<c t="s"><v>${indiceDi.get(descrizione)}</v></c>`);
   righe.push(`<row r="${n}">${celle.join('')}</row>`);
   n++;
 }
