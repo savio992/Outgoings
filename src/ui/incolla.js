@@ -86,8 +86,26 @@ function riepilogoBanca(banca, esito, stipendio) {
       'l’estratto conto e’ piu’ preciso.',
     ]));
   }
+
+  // Le righe scartate non sono una nota a pie' di pagina: se di cento movimenti
+  // ne entrano otto, e' l'unica cosa che conta in questa schermata.
   if (saltate) {
-    pezzi.push(el('div', { class: 'minuta' }, [`${saltate} righe non lette.`]));
+    pezzi.push(el('div', { class: 'nota', style: 'margin-top:8px' }, [
+      el('b', { testo: `${saltate} righe non lette` }),
+      ` su ${movimenti.length + saltate}. Ecco come sono fatte:`,
+    ]));
+    pezzi.push(el('pre', { class: 'diagnostica' }, [
+      (banca.diagnostica?.esempiSaltate ?? [])
+        .map((r) => r.map((c) => c || '·').join('  |  ')).join('\n') || '(nessun esempio)',
+    ]));
+    const d = banca.diagnostica ?? {};
+    pezzi.push(el('div', { class: 'minuta' }, [
+      'Colonne: ',
+      Object.entries(d.colonne ?? {}).map(([nome, i]) => `${nome}=${i}`).join(' '),
+      ` · intestazione ${d.celleIntestazione ?? '?'} celle`,
+      d.righeCorte ? ` · ${d.righeCorte} righe con un numero diverso di celle` : '',
+      '. Manda questa schermata a chi ti ha fatto l’app.',
+    ]));
   }
   return el('div', { class: 'esito' }, pezzi);
 }
@@ -205,10 +223,10 @@ export function apriIncolla({ registro, config, salvaRegistro, salvaConfig }) {
   const conferma = el('button', {
     class: 'bottone', type: 'button', testo: 'Leggi',
     onclick: () => {
-      if (elabora(area.value)) {
-        conferma.textContent = 'Fatto';
-        setTimeout(chiudi, 1600);
-      }
+      // Nessuna chiusura automatica: l'esito dice quante righe sono entrate e
+      // quante no, e chiuderglielo sotto il naso dopo un secondo e mezzo vuol
+      // dire non averglielo detto.
+      if (elabora(area.value)) conferma.textContent = 'Fatto — chiudi quando hai letto';
     },
   });
 
@@ -220,10 +238,8 @@ export function apriIncolla({ registro, config, salvaRegistro, salvaConfig }) {
       const scelto = e.target.files?.[0];
       if (!scelto) return;
       e.target.value = '';
-      const fatto = /\.xlsx$/i.test(scelto.name)
-        ? await elaboraXlsx(scelto)
-        : elabora(await scelto.text());
-      if (fatto) setTimeout(chiudi, 1600);
+      if (/\.xlsx$/i.test(scelto.name)) await elaboraXlsx(scelto);
+      else elabora(await scelto.text());
     },
   });
 
