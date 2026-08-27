@@ -75,10 +75,16 @@ function riepilogoBanca(banca, esito, stipendio) {
       `per ${euro(entrate.reduce((s, m) => s + m.amount, 0))}.`));
   }
   if (stipendio) {
-    pezzi.push(el('div', { class: 'nota' }, [
-      'Stipendio impostato a ', el('b', { testo: euro(stipendio.importo) }),
-      ` da “${stipendio.nome}”. Cambialo in Budget se ho scelto male.`,
-    ]));
+    pezzi.push(el('div', { class: 'nota' }, stipendio.gia
+      ? [
+        'L’accredito piu’ grosso e’ ', el('b', { testo: euro(stipendio.importo) }),
+        ` da “${stipendio.nome}”. Lo stipendio che hai impostato tu resta com’e’: `,
+        'cambialo in Budget se vuoi usare questo.',
+      ]
+      : [
+        'Stipendio impostato a ', el('b', { testo: euro(stipendio.importo) }),
+        ` da “${stipendio.nome}”. Cambialo in Budget se ho scelto male.`,
+      ]));
   }
   if (esito.rimosse.length) {
     pezzi.push(el('div', { class: 'minuta' }, [
@@ -163,8 +169,11 @@ export function apriIncolla({ registro, config, salvaRegistro, salvaConfig }) {
       // altro modo, quindi le due letture della stessa spesa non si
       // riconoscerebbero mai fra loro.
       const risultato = sostituisciPeriodo(registro, banca.movimenti, banca.periodo.da, banca.periodo.a);
-      const stipendio = stipendioDaMovimenti(banca.movimenti);
-      if (stipendio) salvaConfig({ ...config, stipendio: stipendio.importo });
+      // Lo stipendio si imposta solo se non c'era: sovrascrivere un numero che
+      // hai messo tu con la deduzione di un'euristica e' un danno, non un aiuto.
+      const trovato = stipendioDaMovimenti(banca.movimenti);
+      const stipendio = trovato && { ...trovato, gia: Number(config.stipendio) > 0 };
+      if (trovato && !stipendio.gia) salvaConfig({ ...config, stipendio: trovato.importo });
       salvaRegistro(risultato.registro);
       esito.replaceChildren(el('div', { class: 'carta' }, [riepilogoBanca(banca, risultato, stipendio)]));
       return true;

@@ -15,7 +15,10 @@ import { spesa, elencoVuoto } from './registro.js';
 /** Lo stato del giorno in una parola, che decide anche la tinta del blocco. */
 function umore(s) {
   if (!s.attiva) return 'neutro';
-  if (s.residuo < 0) return 'oltre';
+  // Il mese gia' in rosso batte tutto: un tetto di oggi ancora intatto non fa
+  // di una giornata una giornata serena, e il verde direbbe il contrario di
+  // quello che sta succedendo.
+  if (s.residuo < 0 || s.restoMese < 0) return 'oltre';
   return s.soglia > 0 && s.spesoOggi / s.soglia >= .6 ? 'attento' : 'sereno';
 }
 
@@ -31,7 +34,8 @@ function testata(s) {
 
   return el('div', { class: `testata ${umore(s)}` }, [
     el('div', { class: 'occhiello', testo: !s.attiva ? 'spesi oggi'
-      : s.residuo < 0 ? 'oltre il tetto di oggi' : 'puoi ancora spendere' }),
+      : s.residuo < 0 ? 'oltre il tetto di oggi'
+        : s.restoMese < 0 ? 'il mese e’ gia’ oltre' : 'puoi ancora spendere' }),
     cifra,
     s.attiva ? el('div', { class: 'barra' }, [
       el('span', { style: `width:${(quota * 100).toFixed(1)}%` }),
