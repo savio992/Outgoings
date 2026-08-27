@@ -62,6 +62,33 @@ export function eOperazioneFissa(descrizione) {
   return FISSA.test(String(descrizione ?? ''));
 }
 
+// Entrata per forma dell'operazione. La lista e' corta apposta, e non ci sono i
+// bonifici: la banca scrive "BONIFICO SEPA ISTANTANEO" tanto per quello ricevuto
+// da Anna quanto per quello mandato ad Anna, e a distinguerli non e' il tipo ma
+// il "DA" o il "BENEF." che segue - o, nella lista dei movimenti, il segno.
+// Mettere "bonifico" qui dentro vorrebbe dire trasformare in un accredito meta'
+// delle uscite discrezionali del mese: sparirebbero dal tetto giornaliero e in
+// piu' si sommerebbero alle entrate, cioe' lo sbaglio contato due volte.
+//
+// "Ricevuto" invece lo dice a parole, e allora vale.
+const ENTRATA = /^\s*(accredito|stipendio|pensione|versamento|rimborso|storno|(bonifico|postagiro|giroconto)\s+(ricevut[oa]|in\s+entrata|da\b))/i;
+
+/**
+ * Vero se il tipo di operazione e' per costruzione un'entrata.
+ *
+ * Sta accanto a `eOperazioneFissa` e per la stessa ragione: il tipo che l'app
+ * scrive in cima al movimento e' la stessa parola che la banca mette in cima
+ * alla descrizione. Nell'estratto conto il verso lo da' la colonna, che e' un
+ * fatto e vince su qualsiasi vocabolario; serve dove la colonna non c'e'.
+ *
+ * Il "no" di questa funzione non e' un "e' un'uscita": e' un "il tipo non lo
+ * dice". Chi la chiama deve trattarlo cosi', altrimenti un accredito con un
+ * nome che non abbiamo previsto diventa una spesa in silenzio.
+ */
+export function eEntrata(descrizione) {
+  return ENTRATA.test(String(descrizione ?? ''));
+}
+
 /** Divide una riga di CSV o TSV rispettando le virgolette. */
 function dividi(riga, separatore) {
   const fuori = [];

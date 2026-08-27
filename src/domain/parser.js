@@ -10,7 +10,7 @@ import {
 } from './tempo.js';
 import { parseImporto } from './importo.js';
 import { idTransazione } from './registro.js';
-import { eOperazioneFissa } from './banca.js';
+import { eOperazioneFissa, eEntrata } from './banca.js';
 
 const APP = /poste\s*italiane/i;
 
@@ -36,6 +36,25 @@ export function spezzaEsercente(riga) {
     city: luogo.slice(0, virgola).trim() || null,
     region: luogo.slice(virgola + 1).trim() || null,
   };
+}
+
+// Nelle notifiche il verso non e' un segno in una colonna: e' una parola dentro
+// la riga che di solito porta il nome dell'esercente. "Bonifico ricevuto da Anna
+// Bianchi" non e' un negozio dove si e' speso, sono soldi arrivati - e sommarli
+// alle uscite vorrebbe dire mangiarsi il tetto di una giornata intera con dei
+// soldi entrati.
+//
+// La lista e' corta e sta qui, non in `banca.js`, perche' e' il modo di scrivere
+// delle notifiche e non il vocabolario dell'estratto conto. Di notifiche di
+// accredito vere non ne abbiamo ancora vista una: finche' non arriva, un
+// accredito riconosciuto a parole esce in revisione: che sia entrata lo diciamo,
+// da che parte l'abbiamo capito no.
+const NOTIFICA_ENTRATA = /\b(ricevut[oa]|accreditat[oa]|accredito|rimborso|storno|stipendio|pensione)\b/i;
+
+/** Vero se la card parla di soldi che entrano invece che di una spesa. */
+function testoDiAccredito(riga) {
+  const t = String(riga ?? '');
+  return eEntrata(t) || NOTIFICA_ENTRATA.test(t);
 }
 
 /** Fra piu' livelli di fiducia vince sempre il peggiore. */
@@ -101,15 +120,24 @@ export function parseNotifications(rawText, capturedAt) {
     const { merchant, city, region } = spezzaEsercente(rigaEsercente);
     if (!merchant) continue;
 
+    // Il segno e' una prova, la parola e' un indizio: il primo vale quanto la
+    // colonna dell'estratto conto, la seconda manda la voce in revisione.
+    const perSegno = importo.segno === 1;
+    const perTesto = !perSegno && testoDiAccredito(rigaEsercente);
+
     fuori.push(componi({
       merchant,
       city,
       region,
       amount: importo.amount,
+      // Il campo compare solo quando c'e' qualcosa che lo dice. Assente vuol
+      // dire "la card non ne parla", ed e' il caso di tutte le notifiche di
+      // spesa che abbiamo visto: a valle conta come uscita, com'e' giusto.
+      ...(perSegno || perTesto ? { entrata: true } : {}),
       occurredAt: tempo.occurredAt,
       timeKnown: true,
       source: 'screenshot',
-      confidence: peggiore(importo.confidence, tempo.confidence),
+      confidence: peggiore(importo.confidence, tempo.confidence, perTesto ? 'low' : 'high'),
       rawText: [intestazione, rigaEsercente, righe[i]].join('\n'),
     }));
   }
@@ -133,15 +161,22 @@ export function parseStructured({ subtitle, message, receivedAt }) {
   const quando = receivedAt instanceof Date ? receivedAt : new Date(receivedAt);
   if (Number.isNaN(quando.getTime())) return null;
 
+  // L'ANCS consegna le stesse parole che si vedono nel Centro Notifiche, quindi
+  // il verso si legge allo stesso modo. Il messaggio non c'entra: qui dentro e'
+  // gia' passato per `parseImporto`, che accetta solo una cifra e basta.
+  const perSegno = importo.segno === 1;
+  const perTesto = !perSegno && testoDiAccredito(subtitle);
+
   return componi({
     merchant,
     city,
     region,
     amount: importo.amount,
+    ...(perSegno || perTesto ? { entrata: true } : {}),
     occurredAt: isoRoma(quando.getTime()),
     timeKnown: true,
     source: 'ancs',
-    confidence: importo.confidence,
+    confidence: peggiore(importo.confidence, perTesto ? 'low' : 'high'),
     rawText: [subtitle, message].join('\n'),
   });
 }
@@ -383,7 +418,22 @@ export function parseAppList(rawText, capturedAt) {
   return complete.map((v) => {
     const ePos = /^PAGAMENTO\s+POS\b/i.test(v.tipo ?? '');
     const segno = v.importo.segno ?? null;
-    const entrata = segno === 1;
+
+    // Il verso arriva da due parti, e non dicono la stessa cosa quando manca il
+    // segno. Il tipo d'operazione lo sa per certo solo agli estremi - un
+    // "ACCREDITO" entra, un "PAGAMENTO POS" esce - e in mezzo c'e' il bonifico,
+    // che e' la stessa parola nei due versi: li' `null` vuol dire "non lo dice",
+    // che e' diverso da "e' un'uscita".
+    //
+    // Il segno vince quando c'e': e' quello che la banca ha stampato accanto
+    // alla cifra. Il tipo tappa il buco dell'OCR che si mangia un "+" sottile,
+    // ed e' proprio li' che un accredito diventerebbe una spesa - un errore che
+    // non si vede, perche' il totale del giorno resta plausibile, solo piu' alto.
+    const eFissaPerTipo = eOperazioneFissa(v.tipo ?? '');
+    const versoDelTipo = eEntrata(v.tipo ?? '') ? true : ((ePos || eFissaPerTipo) ? false : null);
+    const entrata = segno !== null ? segno === 1 : versoDelTipo === true;
+    const versoNoto = segno !== null || versoDelTipo !== null;
+    const discordeVerso = segno !== null && versoDelTipo !== null && (segno === 1) !== versoDelTipo;
     // Le due date della stessa voce devono dire la stessa cosa. Quando non lo
     // fanno una delle due l'ha letta male l'OCR, e quale non si sa.
     const discordi = Boolean(v.istante && v.data && v.istante.giorno !== v.data.giorno);
@@ -394,7 +444,7 @@ export function parseAppList(rawText, capturedAt) {
         // Fissa per forma dell'operazione, come nell'estratto conto: un
         // addebito diretto e' un mandato che si ripete da solo, un bonifico e'
         // una decisione e sul tetto del giorno deve pesare.
-        fissa: !entrata && !ePos && eOperazioneFissa(v.tipo ?? ''),
+        fissa: !entrata && !ePos && eFissaPerTipo,
       }
       : {};
 
@@ -417,8 +467,14 @@ export function parseAppList(rawText, capturedAt) {
         movimenti
           // Nei movimenti la citta' non c'e' per nessuno, quindi non dice
           // niente. Dicono invece il nome, che un bonifico ricevuto non ha, e
-          // il segno, senza il quale non si sa da che parte vanno i soldi.
-          ? peggiore(v.merchant ? 'high' : 'low', segno ? 'high' : 'low')
+          // il verso: quando ne' il segno ne' il tipo lo dicono non si sa da che
+          // parte vanno i soldi, e quando lo dicono tutti e due ma diversi si sa
+          // solo che uno dei due l'ha letto male l'OCR.
+          ? peggiore(
+            v.merchant ? 'high' : 'low',
+            versoNoto ? 'high' : 'low',
+            discordeVerso ? 'low' : 'high',
+          )
           // Senza la riga del luogo la forma non e' quella attesa: si legge, ma
           // si controlla.
           : (v.city ? 'high' : 'low'),

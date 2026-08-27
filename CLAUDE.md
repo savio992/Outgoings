@@ -115,6 +115,21 @@ per l'estratto conto, e `eOperazioneFissa` sta in `banca.js` e la usano tutte e
 due: due politiche diverse su cosa sia una fissa vorrebbero dire la stessa spesa
 dentro il tetto giornaliero letta da una parte e fuori letta dall'altra.
 
+**Il verso lo dicono il segno e il tipo, in quest'ordine.** Un accredito letto
+per una spesa non si vede: il totale del giorno resta plausibile, solo piu' alto,
+e il tetto se lo mangia tutto. Il segno accanto all'importo vale quanto la
+colonna dell'estratto conto e vince quando c'e'; quando l'OCR se l'e' perso -
+un "+" e' un segno sottile - resta il tipo d'operazione, che pero' lo dice solo
+agli estremi: `eEntrata` sta in `banca.js` accanto a `eOperazioneFissa` e dentro
+non ha "bonifico", perche' la banca scrive lo stesso "BONIFICO SEPA ISTANTANEO"
+per quello ricevuto da Anna e per quello mandato ad Anna. Il suo "no" vuol dire
+"il tipo non lo dice", non "e' un'uscita": in mezzo la voce si legge come spesa -
+una spesa in piu' e' meno grave di una spesa sparita - ma esce in revisione. Se
+segno e tipo si contraddicono uno dei due l'ha letto male l'OCR, e quale non si
+sa. Nelle notifiche il verso non e' un segno ma una parola, e di notifiche di
+accredito vere non ne abbiamo ancora vista una: finche' e' cosi' quella lettura
+vale un controllo a mano.
+
 **Il gateway non e' l'esercente.** "SumUp *Gocce di caffe" e' il bar sotto casa.
 Senza togliere il prefisso lo stesso posto compare con due nomi a seconda del
 terminale, e nel registro sembrano due esercenti.
