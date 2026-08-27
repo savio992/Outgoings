@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Briciole">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="Le notifiche di spesa dell'iPhone diventano un registro, e ti dicono quanto puoi ancora spendere oggi.">
+<title>Briciole</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icona-180.png">
+<link rel="stylesheet" href="src/styles.css">
+</head>
+<body>
+<div id="app"></div>
+<script type="module">
+import { avvia } from './src/app.js';
+avvia();
+if ('serviceWorker' in navigator) {
+  // Registrata dopo il primo disegno: l'app deve comparire subito, non aspettare
+  // la cache.
+  addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+</script>
+</body>
+</html>

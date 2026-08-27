@@ -1,0 +1,69 @@
+# Test, build e pubblicazione su GitHub Pages.
+#
+# Richiede due cose lato repository, da fare una volta sola a mano:
+#  1. il repository deve essere pubblico (Pages sui privati richiede un piano a pagamento);
+#  2. Settings -> Pages -> Build and deployment -> Source: "GitHub Actions".
+#
+# Il secondo passo non si automatizza: `enablement: true` su configure-pages
+# fallisce con "Resource not accessible by integration". Il token del workflow
+# puo' pubblicare su un sito Pages che esiste, non crearne uno.
+
+name: Test e pubblica
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Un solo deploy alla volta, senza annullare quello gia' partito.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Nessuna dipendenza da installare: il progetto usa solo Node e le API del
+      # browser. Il runner gira in UTC ed e' bene che continui: e' la prova che
+      # Europe/Rome sta nel codice e non nell'ambiente.
+      - name: Test
+        run: node --test 'test/*.test.js'
+
+      - name: Build
+        run: node scripts/build.js
+
+      # Solo da main: configure-pages interroga l'API di Pages, che su un ramo
+      # di lavoro non ha niente da dire. E' anche lo step che fallisce, con un
+      # "Get Pages site failed" poco parlante, finche' Pages non e' stato acceso
+      # a mano in Settings.
+      - uses: actions/configure-pages@v5
+        if: github.ref == 'refs/heads/main'
+
+      - uses: actions/upload-pages-artifact@v3
+        if: github.ref == 'refs/heads/main'
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    # Solo da main: un ramo di lavoro non deve sostituire l'app installata sul
+    # telefono.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

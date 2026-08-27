@@ -1,0 +1,111 @@
+// Briciole — le piccole spese che si sommano.
+//
+// Il nome del prodotto sta qui e nel manifest, e da nessun'altra parte: se un
+// giorno diventa un'altra cosa, si cambiano due stringhe.
+
+import { el, icona, ICONE, oggiIso } from './ui/comune.js';
+import { carica, getRegistro, getConfig, setRegistro, setConfig, setConfigZitto, osserva } from './store.js';
+import { vistaOggi } from './ui/oggi.js';
+import { vistaRegistro } from './ui/registro.js';
+import { vistaBudget } from './ui/budget.js';
+import { apriIncolla } from './ui/incolla.js';
+import { apriModifica } from './ui/modifica.js';
+
+export const NOME = 'Briciole';
+
+const VISTE = [
+  { id: 'oggi', nome: 'Oggi', icona: ICONE.oggi },
+  { id: 'registro', nome: 'Registro', icona: ICONE.registro },
+  { id: 'budget', nome: 'Budget', icona: ICONE.budget },
+];
+
+let vista = 'oggi';
+// Il mese aperto nel registro. `null` vuol dire "quello piu' recente", cosi'
+// dopo un import il registro si apre dove sono arrivati i dati nuovi.
+let mese = null;
+
+const DATA = new Intl.DateTimeFormat('it-IT', {
+  weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Rome',
+});
+
+/** In italiano i mesi vanno minuscoli: maiuscola solo la prima lettera. */
+function dataDiOggi() {
+  const t = DATA.format(new Date());
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+/** Toccare una spesa la apre in correzione, da qualunque elenco. */
+function correggi(t) {
+  apriModifica(t, getRegistro(), setRegistro, getConfig(), setConfig);
+}
+
+function corpo() {
+  const registro = getRegistro();
+  const config = getConfig();
+  if (vista === 'registro') {
+    return vistaRegistro(registro, correggi, mese ?? oggiIso().slice(0, 7), (nuovo) => {
+      mese = nuovo;
+      disegna();
+      scrollTo({ top: 0 });
+    });
+  }
+  if (vista === 'budget') return vistaBudget(registro, config, setConfig, setRegistro, setConfigZitto);
+  return vistaOggi(registro, config, correggi);
+}
+
+function navigazione() {
+  return el('nav', { class: 'nav' }, VISTE.map((v) => el('button', {
+    type: 'button',
+    'aria-current': vista === v.id ? 'page' : null,
+    onclick: () => {
+      vista = v.id;
+      disegna();
+      scrollTo({ top: 0 });
+    },
+  }, [icona(v.icona), el('span', { testo: v.nome })])));
+}
+
+function disegna() {
+  const app = document.getElementById('app');
+  // replaceChildren scrive "null" a schermo se gli si passa un null: i pezzi
+  // opzionali vanno filtrati prima, non passati e sperati.
+  app.replaceChildren(...[
+    el('header', { class: 'intestazione' }, [
+      el('div', { class: 'marchio' }, [NOME.slice(0, 3), el('span', { testo: NOME.slice(3) })]),
+      el('div', { class: 'data', testo: dataDiOggi() }),
+    ]),
+    corpo(),
+    vista === 'oggi'
+      ? el('button', {
+        class: 'bottone', type: 'button', testo: 'Incolla uno screenshot',
+        onclick: () => apriIncolla({
+          registro: getRegistro(),
+          config: getConfig(),
+          salvaRegistro: setRegistro,
+          salvaConfig: setConfig,
+        }),
+      })
+      : null,
+  ].filter(Boolean));
+
+  const vecchia = document.querySelector('.nav');
+  if (vecchia) vecchia.remove();
+  document.body.append(navigazione());
+}
+
+export function avvia() {
+  carica();
+  osserva(disegna);
+  disegna();
+
+  // Il giorno cambia anche mentre l'app e' aperta: tornando dopo mezzanotte il
+  // tetto dev'essere quello nuovo, non quello di ieri.
+  let giorno = oggiIso();
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    if (oggiIso() !== giorno) {
+      giorno = oggiIso();
+      disegna();
+    }
+  });
+}

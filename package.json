@@ -1,0 +1,13 @@
+{
+  "name": "outgoings",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Le notifiche di spesa dell'iPhone diventano un registro, senza inserire nulla a mano",
+  "scripts": {
+    "test": "node --test 'test/*.test.js'",
+    "build": "node scripts/build.js",
+    "check": "npm test && npm run build",
+    "fixture": "node scripts/estratto-di-prova.js"
+  }
+}

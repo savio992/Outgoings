@@ -1,0 +1,402 @@
+/* Sistema visivo di Briciole.
+ *
+ * Mobile-first davvero: si progetta per un iPhone in mano, non per una finestra
+ * rimpicciolita. Font di sistema (su iOS e' SF Pro, gia' installato e gia'
+ * familiare), cifre tabulari ovunque compaiano dei soldi, e i colori semantici
+ * riservati allo stato del budget - il resto e' grigio, cosi' quando qualcosa
+ * diventa rosso lo si vede. */
+
+:root {
+  --sfondo: #f2f2f7;
+  --carta: #ffffff;
+  --carta-alt: #fbfbfd;
+  --bordo: #e3e3e8;
+  --testo: #16161a;
+  --testo-tenue: #6c6c75;
+  --testo-fioco: #9a9aa3;
+  --accento: #c2620f;
+  --accento-tenue: #fdf3e9;
+  --ok: #2f855a;
+  --attenzione: #b45309;
+  --allarme: #c0392f;
+  --ombra: 0 1px 2px rgba(20, 16, 10, .04), 0 10px 30px -6px rgba(20, 16, 10, .10);
+  --raggio: 22px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --sfondo: #000000;
+    --carta: #16161a;
+    --carta-alt: #1e1e23;
+    --bordo: #2c2c33;
+    --testo: #f4f4f6;
+    --testo-tenue: #9d9da7;
+    --testo-fioco: #6b6b75;
+    --accento: #f0a35e;
+    --accento-tenue: #2a1d10;
+    --ok: #5fd39a;
+    --attenzione: #f0b357;
+    --allarme: #ff6b5e;
+    --ombra: 0 1px 2px rgba(0, 0, 0, .5), 0 10px 30px -6px rgba(0, 0, 0, .45);
+  }
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: var(--sfondo);
+  color: var(--testo);
+  font-size: 16px;
+  line-height: 1.45;
+  /* Lo scroll elastico di iOS non deve scoprire il bianco sotto la pagina. */
+  overscroll-behavior-y: none;
+}
+
+.soldi { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }
+
+/* --- impalcatura ------------------------------------------------------- */
+
+#app {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: max(12px, env(safe-area-inset-top)) 16px calc(84px + env(safe-area-inset-bottom));
+}
+
+.intestazione {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 8px 4px 18px;
+}
+.marchio { font-size: 17px; font-weight: 650; letter-spacing: -.01em; }
+.marchio span { color: var(--accento); }
+.data { font-size: 13px; color: var(--testo-fioco); }
+
+.carta {
+  background: var(--carta);
+  border-radius: var(--raggio);
+  box-shadow: var(--ombra);
+  overflow: hidden;
+}
+
+.sezione { margin-bottom: 22px; }
+.titolo-sezione {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--testo-fioco);
+  padding: 0 6px 8px;
+}
+
+/* --- il numero di oggi -------------------------------------------------- */
+
+/* Il blocco colorato e' l'unica cosa che si guarda entrando, e cambia tinta con
+   lo stato del budget: il colore e' informazione, non decorazione. Il testo ci
+   vive sopra in bianco, quindi le tre sfumature sono tutte abbastanza scure da
+   reggere il contrasto - anche la piu' chiara. */
+.testata {
+  padding: 30px 22px 26px;
+  color: #fff;
+  text-align: left;
+  position: relative;
+  isolation: isolate;
+}
+.testata.sereno   { background: linear-gradient(152deg, #176b52 0%, #2b9068 55%, #48ab7d 100%); }
+.testata.attento  { background: linear-gradient(152deg, #a34a14 0%, #cd7a1f 55%, #e0993c 100%); }
+.testata.oltre    { background: linear-gradient(152deg, #841f1d 0%, #b8352c 55%, #d15448 100%); }
+.testata.neutro   { background: linear-gradient(152deg, #3c3c46 0%, #55555f 55%, #6d6d78 100%); }
+
+/* Un velo di luce in alto a destra: senza, la sfumatura piatta sembra un
+   riempimento, con, sembra una superficie. */
+.testata::after {
+  content: '';
+  position: absolute; inset: 0; z-index: -1;
+  background: radial-gradient(120% 90% at 82% -10%, rgba(255, 255, 255, .28), transparent 62%);
+}
+
+.occhiello {
+  font-size: 12px; font-weight: 600;
+  letter-spacing: .07em; text-transform: uppercase;
+  opacity: .8;
+}
+.grande {
+  font-size: clamp(40px, 13vw, 52px);
+  font-weight: 700; letter-spacing: -.035em; line-height: 1.08;
+  margin-top: 3px;
+}
+.sottotitolo { font-size: 13.5px; opacity: .85; margin-top: 2px; }
+
+.barra {
+  height: 6px; border-radius: 3px;
+  background: rgba(255, 255, 255, .26);
+  margin: 16px 0 12px;
+  overflow: hidden;
+}
+.barra span {
+  display: block; height: 100%; border-radius: 3px;
+  background: #fff;
+  transition: width .7s cubic-bezier(.22, 1, .36, 1);
+}
+
+/* --- la settimana ------------------------------------------------------- */
+
+.settimana { padding-top: 18px; }
+
+.grafico {
+  position: relative;
+  display: flex; gap: 7px; align-items: flex-end;
+  height: 104px; padding: 0 18px;
+}
+/* Nessuna traccia dietro le barre: un rettangolo grigio a tutta altezza si
+   legge come una barra vuota, e sette barre vuote dicono il contrario di quello
+   che il disegno vuole dire. */
+.gambo {
+  flex: 1; height: 100%;
+  display: flex; align-items: flex-end;
+}
+.gambo .riempimento {
+  display: block; width: 100%; border-radius: 8px;
+  background: color-mix(in srgb, var(--accento) 34%, transparent);
+  transition: height .65s cubic-bezier(.22, 1, .36, 1);
+}
+.gambo .riempimento.alto { background: var(--allarme); }
+.gambo.oggi .riempimento { background: var(--accento); }
+
+/* Il tetto attraversa il disegno: e' il confronto che rende leggibili le barre,
+   che da sole direbbero solo "piu' alta di quell'altra". */
+.tetto {
+  position: absolute; left: 18px; right: 18px;
+  border-top: 1.5px dashed var(--testo-fioco);
+  opacity: .55;
+  pointer-events: none;
+}
+.tetto span {
+  position: absolute; right: 0; top: -15px;
+  font-size: 10.5px; font-weight: 600;
+  color: var(--testo-fioco);
+  background: var(--carta); padding: 0 4px;
+}
+
+.sigle {
+  display: flex; gap: 7px;
+  padding: 7px 18px 14px;
+}
+.sigle span {
+  flex: 1; text-align: center;
+  font-size: 11px; font-weight: 600;
+  color: var(--testo-fioco);
+}
+.sigle span.oggi { color: var(--accento); }
+
+.spento { padding: 30px 22px; text-align: center; color: var(--testo-tenue); font-size: 15px; }
+
+.avviso {
+  padding: 12px 20px 14px;
+  background: var(--accento-tenue);
+  color: var(--attenzione);
+  font-size: 12.5px; line-height: 1.45;
+}
+.avviso b { font-weight: 640; }
+
+/* --- righe di dati ------------------------------------------------------ */
+
+.righe { display: flex; }
+.righe > div {
+  flex: 1;
+  padding: 13px 8px;
+  text-align: center;
+  border-top: 1px solid var(--bordo);
+}
+.righe > div + div { border-left: 1px solid var(--bordo); }
+.righe .valore { font-size: 16px; font-weight: 620; letter-spacing: -.01em; }
+.righe .chiave { font-size: 11px; color: var(--testo-fioco); margin-top: 1px; }
+
+/* --- barra dei mesi ----------------------------------------------------- */
+
+.barra-mesi {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 10px 12px;
+}
+.mese-nome { font-size: 17px; font-weight: 650; letter-spacing: -.02em; }
+.mese-freccia {
+  width: 40px; height: 34px;
+  border: 0; border-radius: 10px;
+  background: none; color: var(--accento);
+  font-size: 22px; line-height: 1; cursor: pointer;
+}
+.mese-freccia:disabled { color: var(--bordo); cursor: default; }
+.mese-freccia:not(:disabled):active { background: var(--carta-alt); }
+
+.righe .valore.entrata { color: var(--ok); }
+.righe .valore.fissa { color: var(--testo-tenue); }
+
+/* --- elenco spese ------------------------------------------------------- */
+
+.giorno {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 14px 18px 6px;
+  font-size: 12px; font-weight: 600; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--testo-fioco);
+}
+.giorno .totale { text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--testo-tenue); }
+
+.spesa {
+  display: flex; align-items: center; gap: 12px;
+  padding: 9px 18px;
+  border-top: 1px solid var(--bordo);
+  background: none; border-left: 0; border-right: 0; border-bottom: 0;
+  width: 100%; text-align: left; color: inherit; font: inherit;
+}
+.giorno + .spesa { border-top: 0; }
+.spesa { cursor: pointer; }
+.spesa:active { background: var(--carta-alt); }
+
+.sigillo {
+  flex: none;
+  width: 36px; height: 36px; border-radius: 11px;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 12.5px; font-weight: 680; letter-spacing: .02em;
+}
+
+.spesa .nome { flex: 1; min-width: 0; }
+.spesa .nome b { display: block; font-weight: 550; font-size: 15px; letter-spacing: -.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.spesa .nome small { color: var(--testo-fioco); font-size: 12.5px; }
+.spesa .importo { font-size: 15.5px; font-weight: 620; letter-spacing: -.01em; white-space: nowrap; }
+.spesa .importo.entrata { color: var(--ok); }
+.spesa .importo.fissa { color: var(--testo-tenue); font-weight: 550; }
+
+.pallino {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--attenzione); flex: none;
+}
+
+.vuoto { padding: 34px 22px; text-align: center; color: var(--testo-fioco); font-size: 14.5px; }
+
+/* --- controlli ---------------------------------------------------------- */
+
+.bottone {
+  display: block; width: 100%;
+  padding: 14px; border: 0; border-radius: 14px;
+  background: var(--accento); color: #fff;
+  font: inherit; font-weight: 620; font-size: 16px;
+  cursor: pointer;
+}
+.bottone:active { opacity: .82; }
+.bottone.tenue { background: var(--carta); color: var(--testo); box-shadow: var(--ombra); }
+.bottone.pericolo { background: none; color: var(--allarme); box-shadow: none; }
+
+.campo {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 18px; border-top: 1px solid var(--bordo);
+}
+.campo:first-child { border-top: 0; }
+.campo label { flex: 1; font-size: 15px; }
+.campo .campo-testo { flex: 1; font-size: 15px; }
+.campo .campo-testo small { display: block; color: var(--testo-fioco); font-size: 12px; line-height: 1.35; }
+.campo .interruttore { width: auto; flex: none; transform: scale(1.3); accent-color: var(--accento); }
+.campo input {
+  width: 116px; padding: 8px 10px;
+  border: 1px solid var(--bordo); border-radius: 10px;
+  background: var(--carta-alt); color: var(--testo);
+  font: inherit; font-size: 15px; text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.campo input.nome { width: auto; flex: 1; text-align: left; }
+/* Il selettore di data nativo porta con se' il suo formato e la sua iconcina:
+   con la larghezza degli altri campi la data esce troncata. */
+.campo input[type='date'] { width: auto; min-width: 150px; text-align: left; }
+.campo input:focus { outline: 2px solid var(--accento); outline-offset: -1px; }
+.campo input.sbagliato { border-color: var(--allarme); color: var(--allarme); }
+.campo label.fioco { color: var(--testo-tenue); }
+.campo .togli.piu { font-size: 20px; color: var(--accento); }
+.campo .versione {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px; color: var(--testo-fioco); letter-spacing: .02em;
+}
+.campo.cerca { width: 100%; background: none; border-left: 0; border-right: 0;
+  border-bottom: 0; font: inherit; text-align: left; cursor: pointer; }
+.campo.cerca label { color: var(--accento); font-weight: 550; }
+.campo .togli {
+  border: 0; background: none; color: var(--testo-fioco);
+  font-size: 22px; line-height: 1; padding: 0 2px; cursor: pointer;
+}
+
+/* --- navigazione -------------------------------------------------------- */
+
+.nav {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+  display: flex;
+  padding-bottom: env(safe-area-inset-bottom);
+  background: color-mix(in srgb, var(--carta) 82%, transparent);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  border-top: 1px solid var(--bordo);
+}
+.nav button {
+  flex: 1; padding: 9px 0 7px;
+  border: 0; background: none; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  color: var(--testo-fioco); font: inherit; font-size: 10.5px; font-weight: 550;
+}
+.nav button[aria-current='page'] { color: var(--accento); }
+.nav svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round; }
+
+/* --- foglio dell'incolla ------------------------------------------------ */
+
+.velo {
+  position: fixed; inset: 0; z-index: 30;
+  background: rgba(0, 0, 0, .45);
+  display: flex; align-items: flex-end;
+  animation: sfuma .2s ease;
+}
+@keyframes sfuma { from { opacity: 0; } }
+
+.foglio {
+  width: 100%; max-width: 560px; margin: 0 auto;
+  background: var(--sfondo);
+  border-radius: 20px 20px 0 0;
+  padding: 8px 16px calc(20px + env(safe-area-inset-bottom));
+  max-height: 92vh; overflow-y: auto;
+  animation: sali .28s cubic-bezier(.22, 1, .36, 1);
+}
+@keyframes sali { from { transform: translateY(100%); } }
+
+.presa { width: 36px; height: 5px; border-radius: 3px; background: var(--bordo); margin: 6px auto 14px; }
+
+.foglio h2 { font-size: 20px; font-weight: 660; letter-spacing: -.02em; margin: 0 4px 6px; }
+.foglio p.aiuto { font-size: 13.5px; color: var(--testo-tenue); margin: 0 4px 14px; }
+
+.foglio textarea {
+  width: 100%; min-height: 168px; padding: 14px;
+  border: 1px solid var(--bordo); border-radius: 14px;
+  background: var(--carta); color: var(--testo);
+  font: inherit; font-size: 15px; line-height: 1.5;
+  resize: vertical;
+}
+.foglio textarea:focus { outline: 2px solid var(--accento); outline-offset: -1px; }
+
+.esito { padding: 14px 16px; font-size: 14.5px; line-height: 1.55; }
+.esito b { font-weight: 650; }
+.esito .nota { color: var(--attenzione); }
+.esito .minuta { color: var(--testo-fioco); font-size: 12.5px; margin-top: 4px; }
+.esito .diagnostica {
+  margin: 6px 0; padding: 10px;
+  background: var(--carta-alt); border: 1px solid var(--bordo); border-radius: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px; line-height: 1.5;
+  white-space: pre; overflow-x: auto; -webkit-overflow-scrolling: touch;
+}
+.esito > div + div { margin-top: 3px; }
+
+.pila > * + * { margin-top: 10px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .barra span, .gambo .riempimento, .foglio, .velo { transition: none; animation: none; }
+}
