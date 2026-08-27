@@ -95,7 +95,9 @@ test('lo stipendio si ricava dall' + "'" + ' accredito piu' + "'" + ' grosso', (
   assert.equal(s.mesi, 1);
 });
 
-test('con piu' + "'" + ' mesi vince chi si ripete, non chi e' + "'" + ' piu' + "'" + ' grosso', () => {
+test('fra accrediti di taglia simile vince chi si ripete', () => {
+  // Uno stipendio e un rimborso straordinario possono differire di un fattore
+  // due o tre: li' la ricorrenza e' il segnale buono.
   const movimenti = [
     { entrata: true, amount: 1850, merchant: 'BONIFICO STIPENDIO', occurredAt: '2026-07-01T00:00:00+02:00' },
     { entrata: true, amount: 1850, merchant: 'BONIFICO STIPENDIO', occurredAt: '2026-08-01T00:00:00+02:00' },
@@ -103,6 +105,31 @@ test('con piu' + "'" + ' mesi vince chi si ripete, non chi e' + "'" + ' piu' + "
   ];
   assert.equal(stipendioDaMovimenti(movimenti).importo, 1850);
   assert.equal(stipendioDaMovimenti(movimenti).mesi, 2);
+});
+
+test('un rimborso da quaranta euro non e' + "'" + ' uno stipendio, per quanto si ripeta', () => {
+  // Il caso vero: la restituzione di una cena arrivata due mesi di fila
+  // batteva uno stipendio da tremilaseicento comparso una volta sola nel
+  // periodo coperto, e il tetto giornaliero finiva a zero.
+  const movimenti = [
+    { entrata: true, amount: 40, merchant: 'Anna Bianchi', occurredAt: '2026-07-14T00:00:00+02:00' },
+    { entrata: true, amount: 30, merchant: 'Anna Bianchi', occurredAt: '2026-08-25T00:00:00+02:00' },
+    { entrata: true, amount: 3646.37, merchant: 'STIPENDIO/PENSIONE', occurredAt: '2026-07-31T00:00:00+02:00' },
+  ];
+  const s = stipendioDaMovimenti(movimenti);
+  assert.equal(s.importo, 3646.37);
+  assert.equal(s.nome, 'STIPENDIO/PENSIONE');
+});
+
+test('due accrediti dello stesso ordine restano entrambi in gara', () => {
+  // La soglia separa gli ordini di grandezza, non i candidati veri: a un quarto
+  // del massimo, 1850 su 5000 e' dentro e 40 su 3646 e' fuori.
+  const uno = stipendioDaMovimenti([
+    { entrata: true, amount: 1300, merchant: 'PARTE FISSA', occurredAt: '2026-07-01T00:00:00+02:00' },
+    { entrata: true, amount: 1300, merchant: 'PARTE FISSA', occurredAt: '2026-08-01T00:00:00+02:00' },
+    { entrata: true, amount: 4000, merchant: 'UNA TANTUM', occurredAt: '2026-08-10T00:00:00+02:00' },
+  ]);
+  assert.equal(uno.nome, 'PARTE FISSA');
 });
 
 test('la banca riscrive il periodo che copre, e solo quello', () => {

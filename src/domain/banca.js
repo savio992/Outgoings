@@ -395,12 +395,19 @@ export function parseEstrattoContoDaGriglia(griglia, opzioni = {}) {
 }
 
 /**
- * Lo stipendio, cioe' l'accredito ricorrente piu' grosso.
+ * Lo stipendio, cioe' l'accredito grosso che si ripete.
  *
- * Con un mese solo la ricorrenza non si vede, e allora vince semplicemente
- * l'accredito piu' grande: e' quasi sempre lo stipendio, e comunque resta un
- * numero modificabile a mano. Con piu' mesi si preferisce chi si ripete, che e'
- * il segnale vero.
+ * L'ordine delle due condizioni conta, e la prima versione lo aveva sbagliato:
+ * pesando la ricorrenza sopra ogni cosa, un rimborso da quaranta euro arrivato
+ * due mesi di fila batteva uno stipendio da tremilaseicento comparso una volta
+ * sola nel periodo coperto. Un accredito da quaranta euro non e' uno stipendio,
+ * per quante volte si ripeta.
+ *
+ * Quindi prima si guarda la taglia, poi la ricorrenza. La soglia e' un quarto
+ * del piu' grande, e serve a separare due cose diverse: uno stipendio e un
+ * rimborso straordinario possono differire di un fattore due o tre, e li' la
+ * ricorrenza e' il segnale buono; uno stipendio e la restituzione della cena
+ * differiscono di un fattore cento, e li' la ricorrenza non conta niente.
  */
 export function stipendioDaMovimenti(movimenti) {
   const entrate = (movimenti ?? []).filter((m) => m.entrata);
@@ -413,14 +420,15 @@ export function stipendioDaMovimenti(movimenti) {
     perNome.get(chiave).push(m);
   }
 
-  let migliore = null;
-  for (const gruppo of perNome.values()) {
-    const mesi = new Set(gruppo.map((m) => m.occurredAt.slice(0, 7))).size;
-    const importo = Math.max(...gruppo.map((m) => m.amount));
-    const punteggio = mesi * 1e9 + importo;
-    if (!migliore || punteggio > migliore.punteggio) {
-      migliore = { punteggio, importo, nome: gruppo[0].merchant, mesi };
-    }
-  }
-  return migliore ? { importo: migliore.importo, nome: migliore.nome, mesi: migliore.mesi } : null;
+  const candidati = [...perNome.values()].map((gruppo) => ({
+    nome: gruppo[0].merchant,
+    importo: Math.max(...gruppo.map((m) => m.amount)),
+    mesi: new Set(gruppo.map((m) => m.occurredAt.slice(0, 7))).size,
+  }));
+
+  const massimo = Math.max(...candidati.map((c) => c.importo));
+  const inGara = candidati.filter((c) => c.importo >= massimo / 4);
+
+  inGara.sort((a, b) => b.mesi - a.mesi || b.importo - a.importo);
+  return inGara[0] ?? null;
 }
