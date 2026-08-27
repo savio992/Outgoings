@@ -298,6 +298,33 @@ test('il mutuo resta una spesa finche' + "'" + ' non gli dici che e' + "'" + ' f
   assert.equal(con[18].fissa, false, 'le maglie restano una spesa');
 });
 
+test('la causale distingue il mutuo dai pannolini dello stesso beneficiario', () => {
+  // Allo stesso nome vanno sia il mutuo sia venti euro di regali: ricordare il
+  // solo beneficiario toglierebbe dal tetto anche i regali, cioe' esattamente
+  // la spesa discrezionale che sul tetto deve pesare.
+  const stessoNome = [
+    'Data Contabile\tData Valuta\tAddebiti (euro)\tAccrediti (euro)\tDescrizione operazioni',
+    '10/08/2026\t10/08/2026\t520,00\t \tBONIFICO SEPA ISTANTANEO TRN CCTX00000000000000 BENEF. Mario Bianchi PER mutuo',
+    '12/08/2026\t12/08/2026\t20,00\t \tBONIFICO SEPA ISTANTANEO TRN CCTX00000000000000 BENEF. Mario Bianchi PER pannolini',
+  ].join('\n');
+
+  const con = Object.fromEntries(
+    parseEstrattoConto(stessoNome, { fisse: [{ nome: 'Mario Bianchi', causale: 'mutuo' }] })
+      .movimenti.map((m) => [m.amount, m]),
+  );
+  assert.equal(con[520].fissa, true);
+  assert.equal(con[20].fissa, false, 'i pannolini restano una spesa del giorno');
+});
+
+test('una voce senza causale vale per tutto quello che va a quel nome', () => {
+  // E' la forma vecchia, e resta valida: per ENEL il beneficiario basta.
+  const con = Object.fromEntries(
+    parseEstrattoConto(FUORI_POS, { fisse: [{ nome: 'Mario Bianchi', causale: null }] })
+      .movimenti.map((m) => [m.amount, m]),
+  );
+  assert.equal(con[520].fissa, true);
+});
+
 test('il nome imparato si riconosce a meno di maiuscole e spazi', () => {
   const con = parseEstrattoConto(FUORI_POS, { fisse: ['  mario   BIANCHI '] }).movimenti;
   assert.equal(con.find((m) => m.amount === 520).fissa, true);
@@ -356,4 +383,21 @@ test('nomi con le stesse parole ma diversi non si fondono per caso', () => {
   ].join('\n');
   const nomi = new Set(parseEstrattoConto(testo).movimenti.map((m) => m.merchant));
   assert.equal(nomi.size, 2, 'del e della sono parole diverse');
+});
+
+test('lo stipendio ha un nome, non un TRN', () => {
+  // Col TRN dentro il nome ogni mese e' un esercente diverso: la ricorrenza non
+  // sarebbe mai osservabile, e a regime lo stipendio resterebbe indistinguibile
+  // da un accredito qualunque.
+  const righe = [
+    'Data Contabile\tData Valuta\tAddebiti (euro)\tAccrediti (euro)\tDescrizione operazioni',
+    '31/07/2026\t31/07/2026\t \t1.900,00\tSTIPENDIO/PENSIONE Da ACME SPA TRN 0300000000000000000000000000IT BANKITXXXXX per Emolumenti 07-2026',
+    '31/08/2026\t31/08/2026\t \t1.900,00\tSTIPENDIO/PENSIONE Da ACME SPA TRN 0300000000000000000000000001IT BANKITXXXXX per Emolumenti 08-2026',
+  ].join('\n');
+  const { movimenti } = parseEstrattoConto(righe);
+  assert.equal(movimenti[0].merchant, 'ACME SPA');
+  assert.equal(movimenti[0].causale, 'Emolumenti 07-2026');
+  const trovato = stipendioDaMovimenti(movimenti);
+  assert.equal(trovato.nome, 'ACME SPA');
+  assert.equal(trovato.mesi, 2, 'due mesi con lo stesso nome, non due nomi diversi');
 });

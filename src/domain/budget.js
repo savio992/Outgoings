@@ -4,8 +4,11 @@
 // uscite fisse, diviso i giorni che mancano alla fine del mese. E si ricalcola
 // ogni giorno sul residuo vero, quindi sforare ieri abbassa il tetto di oggi
 // invece di lasciare che il buco si accumuli senza dirlo.
+//
+// Il risparmio entra qui e non a fine mese, insieme alle uscite fisse: e' l'unico
+// punto in cui mettere da parte cambia davvero qualcosa.
 
-import { giornoDi, eSpesaVariabile } from './registro.js';
+import { giornoDi, eSpesaVariabile, meseDi } from './registro.js';
 
 const due = (n) => String(n).padStart(2, '0');
 const centesimi = (n) => Number((Math.round(n * 100) / 100).toFixed(2));
@@ -16,6 +19,14 @@ export const CONFIG_VUOTA = {
   // Beneficiari che l'utente ha marcato come uscita fissa: il mutuo pagato con
   // un bonifico non e' distinguibile dai pannolini se non lo dice lui.
   fisse: [],
+  // Quanto si vuole mettere da parte ogni mese.
+  //
+  // Non e' un traguardo da controllare a fine mese: si toglie dal disponibile
+  // *prima* del tetto, insieme alle uscite fisse. Trattarlo come l'avanzo -
+  // spendi, e quel che resta e' risparmio - vuol dire non risparmiare, perche'
+  // il tetto si prenderebbe comunque tutto: e' il motivo per cui l'estratto
+  // conto dice che il mese e' andato bene e sul conto non resta niente.
+  risparmio: 0,
 };
 
 /** Quanti giorni ha il mese. Il giorno 0 del mese dopo e' l'ultimo di questo. */
@@ -28,9 +39,19 @@ export function totaleUsciteFisse(config) {
   return centesimi((config?.usciteFisse ?? []).reduce((s, u) => s + (Number(u.importo) || 0), 0));
 }
 
+/** L'obiettivo di risparmio del mese, mai negativo. */
+export function obiettivoRisparmio(config) {
+  return centesimi(Math.max(0, Number(config?.risparmio) || 0));
+}
+
+/** Lo stipendio meno le sole uscite fisse: quanto passa davvero dalle mani. */
+export function dopoLeFisse(config) {
+  return centesimi((Number(config?.stipendio) || 0) - totaleUsciteFisse(config));
+}
+
 /** Quanto resta ogni mese per le spese variabili, cioe' quelle che il registro vede. */
 export function disponibileDelMese(config) {
-  return centesimi((Number(config?.stipendio) || 0) - totaleUsciteFisse(config));
+  return centesimi(dopoLeFisse(config) - obiettivoRisparmio(config));
 }
 
 function sommaTra(registro, da, a) {
@@ -68,6 +89,7 @@ export function statoGiorno(config, registro, giorno) {
   const parziale = daQuando !== null && daQuando > primo;
 
   const disponibile = disponibileDelMese(config);
+  const obiettivo = obiettivoRisparmio(config);
   const spesoPrima = gg > 1 ? sommaTra(registro, primo, `${anno}-${due(mese)}-${due(gg - 1)}`) : 0;
   const spesoOggi = sommaTra(registro, giorno, giorno);
   const restanti = Math.max(1, nelMese - gg + 1);
@@ -88,9 +110,19 @@ export function statoGiorno(config, registro, giorno) {
     soglia,
     residuo: centesimi(soglia - spesoOggi),
     superata: spesoOggi > soglia && soglia > 0,
+    risparmio: obiettivo,
+    // Quanto sarebbe messo da parte se il mese finisse adesso: e' l'obiettivo
+    // piu' cio' che del tetto e' avanzato. Sopra l'obiettivo si e' risparmiato
+    // di piu'; sotto zero non e' un risparmio piccolo, e' il gruzzolo che si
+    // sta consumando - e va scritto cosi', non nascosto dietro uno zero.
+    messoDaParte: centesimi(obiettivo + disponibile - spesoPrima - spesoOggi),
     // Senza stipendio non c'e' niente da calcolare: la UI mostra il registro e
     // basta, invece di inventare una soglia a zero e dichiararla sforata.
     attiva: disponibile > 0,
+    // Lo stipendio c'e' ma se ne va tutto in uscite fisse e risparmio. E' un
+    // caso diverso dal budget spento, e merita un'altra frase: qui non manca un
+    // dato, e' l'obiettivo a non lasciare niente per i giorni.
+    troppoRisparmio: disponibile <= 0 && dopoLeFisse(config) > 0,
     parziale,
     daQuando,
     finestra: { primo, ultimo },
@@ -121,4 +153,56 @@ export function ultimiGiorni(registro, giorno, quanti = 7) {
     fuori.push({ giorno: g, totale: sommaTra(registro, g, g) });
   }
   return fuori;
+}
+
+/**
+ * Mese per mese, quanto e' finito da parte.
+ *
+ * A fine mese la domanda non e' se il tetto ha retto, ma se sul conto e'
+ * rimasto qualcosa: e' l'unico numero che a fine anno si vede. Si calcola con lo
+ * stipendio e le uscite fisse di *adesso*, che sui mesi passati e' un'ipotesi -
+ * la UI lo dice, invece di far passare per storia quella che e' una proiezione.
+ *
+ * Un mese che il registro copre solo in parte non entra nel totale: il risparmio
+ * calcolato sulle spese di mezzo mese sarebbe alto e falso, ed e' meglio non
+ * dare un numero che darne uno gonfiato.
+ */
+export function risparmioDeiMesi(config, registro, oggi) {
+  const spese = (registro ?? []).filter(eSpesaVariabile);
+  const primoGiorno = spese.map(giornoDi).sort()[0] ?? null;
+  if (!primoGiorno) return { mesi: [], totale: 0 };
+
+  const meseOggi = String(oggi).slice(0, 7);
+  const disponibile = disponibileDelMese(config);
+  const obiettivo = obiettivoRisparmio(config);
+
+  const perMese = new Map();
+  for (const t of spese) {
+    const m = meseDi(t);
+    if (m > meseOggi) continue;
+    perMese.set(m, centesimi((perMese.get(m) ?? 0) + t.amount));
+  }
+
+  const mesi = [...perMese.keys()].sort().map((mese) => {
+    const speso = perMese.get(mese);
+    const inCorso = mese === meseOggi;
+    // Il registro parte a mese gia' iniziato: le spese dei primi giorni non le
+    // ha viste nessuno, e quello che sembra risparmio e' solo assenza di dati.
+    const parziale = primoGiorno > `${mese}-01`;
+    return {
+      mese,
+      speso,
+      obiettivo,
+      messoDaParte: centesimi(obiettivo + disponibile - speso),
+      inCorso,
+      parziale,
+      // Solo un mese chiuso e coperto per intero e' un risultato.
+      contabile: !inCorso && !parziale,
+    };
+  });
+
+  return {
+    mesi,
+    totale: centesimi(mesi.filter((m) => m.contabile).reduce((s, m) => s + m.messoDaParte, 0)),
+  };
 }

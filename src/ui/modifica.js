@@ -7,13 +7,20 @@
 
 import { el, euro, leggiNumero } from './comune.js';
 import { correggi, elimina } from '../domain/registro.js';
+import { chiaveFissa } from '../domain/banca.js';
 import { isoDelGiorno } from '../domain/tempo.js';
 
-/** Tiene aggiornato l'elenco dei beneficiari che valgono come uscita fissa. */
-function ricordaFissa(config, nome, fissa, salvaConfig) {
-  const chiave = nome.toLowerCase().replace(/\s+/g, ' ').trim();
-  const attuali = (config?.fisse ?? []).filter((n) => n.toLowerCase().replace(/\s+/g, ' ').trim() !== chiave);
-  salvaConfig({ ...config, fisse: fissa ? [...attuali, nome] : attuali });
+/**
+ * Tiene aggiornato l'elenco di cio' che al prossimo import vale come uscita
+ * fissa. Si ricorda il beneficiario *e la causale*: allo stesso nome vanno sia
+ * il mutuo sia i pannolini, e ricordare solo il nome li marcherebbe entrambi.
+ */
+function ricordaFissa(config, nome, causale, fissa, salvaConfig) {
+  const chiave = chiaveFissa(nome, causale);
+  const attuali = (config?.fisse ?? []).filter((v) => (typeof v === 'string'
+    ? chiaveFissa(v, null) !== chiave
+    : chiaveFissa(v?.nome, v?.causale) !== chiave));
+  salvaConfig({ ...config, fisse: fissa ? [...attuali, { nome, causale: causale ?? null }] : attuali });
 }
 
 export function apriModifica(transazione, registro, salva, config, salvaConfig) {
@@ -53,7 +60,7 @@ export function apriModifica(transazione, registro, salva, config, salvaConfig) 
       : [0, 0];
 
     const nuovoNome = nome.value.trim();
-    if (salvaConfig) ricordaFissa(config, nuovoNome, fissa.checked, salvaConfig);
+    if (salvaConfig) ricordaFissa(config, nuovoNome, transazione.causale, fissa.checked, salvaConfig);
 
     salva(correggi(registro, transazione.id, {
       merchant: nuovoNome,
@@ -81,7 +88,15 @@ export function apriModifica(transazione, registro, salva, config, salvaConfig) 
       transazione.entrata ? null : el('label', { class: 'campo' }, [
         el('span', { class: 'campo-testo' }, [
           'Uscita fissa',
-          el('small', { testo: 'Non consuma il tetto giornaliero. Vale anche per i prossimi.' }),
+          // Cosa esattamente l'app si ricordera' va detto qui: "vale anche per
+          // i prossimi" da solo lascia credere che valga per tutti i bonifici
+          // a quel nome, e per lo stesso nome ci passano il mutuo e i pannolini.
+          el('small', {
+            testo: `Non consuma il tetto giornaliero. Al prossimo import vale per ${
+              transazione.causale
+                ? `«${transazione.merchant} · ${transazione.causale}»`
+                : `tutto cio' che va a «${transazione.merchant}»`}.`,
+          }),
         ]),
         fissa,
       ]),

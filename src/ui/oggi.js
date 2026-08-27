@@ -22,27 +22,80 @@ function umore(s) {
   return s.soglia > 0 && s.spesoOggi / s.soglia >= .6 ? 'attento' : 'sereno';
 }
 
+/**
+ * Il numero grande e le due righe che lo spiegano.
+ *
+ * Quando il mese e' gia' sfondato il tetto di oggi vale zero, e mostrarlo -
+ * "0,00 € spesi su 0,00 €" - non e' un'informazione: dice solo che oggi non
+ * hai ancora comprato niente, quando la cosa da sapere e' di quanto sei sotto.
+ * Li' il numero grande diventa lo sfondamento del mese, che e' la risposta vera
+ * a "quanto posso ancora spendere".
+ */
 function testata(s) {
+  const sfondato = s.attiva && s.restoMese < 0;
   const cifra = el('div', { class: 'grande soldi' });
-  const valore = s.attiva ? Math.abs(s.residuo) : s.spesoOggi;
-  anima(cifra, valore, (n) => euro(n));
+  anima(cifra, !s.attiva ? s.spesoOggi
+    : sfondato ? Math.abs(s.restoMese) : Math.abs(s.residuo), (n) => euro(n));
 
   // La barra e' la stessa informazione dell'anello di prima, ma leggibile anche
   // quando la quota e' minuscola: una tacca che parte da sinistra si vede, un
   // arco del tre per cento no.
-  const quota = s.attiva && s.soglia > 0 ? Math.min(1, Math.max(0, s.spesoOggi / s.soglia)) : 0;
+  const quota = !s.attiva ? 0
+    : sfondato ? 1
+      : s.soglia > 0 ? Math.min(1, Math.max(0, s.spesoOggi / s.soglia)) : 0;
+
+  const sotto = !s.attiva
+    ? (s.troppoRisparmio
+      ? `Fra uscite fisse e ${euro(s.risparmio)} da mettere da parte non resta niente per i giorni`
+      : 'Imposta stipendio e uscite fisse per avere un tetto giornaliero')
+    : sfondato
+      ? `${euro(s.spesoMese)} spesi su ${euro(s.disponibile)} del mese`
+      : `${euro(s.spesoOggi)} spesi su ${euro(s.soglia)}`;
 
   return el('div', { class: `testata ${umore(s)}` }, [
     el('div', { class: 'occhiello', testo: !s.attiva ? 'spesi oggi'
-      : s.residuo < 0 ? 'oltre il tetto di oggi'
-        : s.restoMese < 0 ? 'il mese e’ gia’ oltre' : 'puoi ancora spendere' }),
+      : sfondato ? 'il mese e’ gia’ oltre'
+        : s.residuo < 0 ? 'oltre il tetto di oggi' : 'puoi ancora spendere' }),
     cifra,
     s.attiva ? el('div', { class: 'barra' }, [
       el('span', { style: `width:${(quota * 100).toFixed(1)}%` }),
     ]) : null,
-    el('div', { class: 'sottotitolo' }, s.attiva
-      ? [`${euro(s.spesoOggi)} spesi su ${euro(s.soglia)}`]
-      : ['Imposta stipendio e uscite fisse per avere un tetto giornaliero']),
+    el('div', { class: 'sottotitolo' }, [sotto]),
+  ]);
+}
+
+/**
+ * Il risparmio del mese, se il mese finisse oggi.
+ *
+ * Sta sotto il grafico e non nel blocco colorato per un motivo: la testata
+ * risponde a "quanto posso spendere oggi", questa a "come sta andando il mese".
+ * Sono due domande diverse e due ritmi diversi - una si guarda entrando in un
+ * bar, l'altra il venerdi' sera.
+ */
+function risparmio(s) {
+  if (!s.risparmio) return null;
+
+  const fatto = Math.max(0, Math.min(s.risparmio, s.messoDaParte));
+  const quota = Math.max(0, Math.min(1, s.messoDaParte / s.risparmio));
+  const stato = s.messoDaParte < 0 ? 'oltre' : s.messoDaParte >= s.risparmio ? 'sereno' : 'attento';
+
+  return el('div', { class: `carta sezione risparmio ${stato}` }, [
+    el('div', { class: 'giorno' }, [
+      el('span', { testo: 'Da parte questo mese' }),
+      el('span', {
+        class: 'totale soldi',
+        // Sotto zero non c'e' niente da parte: c'e' un buco, e il numero da
+        // scrivere e' quello, col segno. Mostrare "0,00 €" sarebbe piu' gentile
+        // e direbbe una cosa falsa.
+        testo: s.messoDaParte < 0 ? euro(s.messoDaParte) : `${euro(fatto)} di ${euro(s.risparmio)}`,
+      }),
+    ]),
+    el('div', { class: 'barra' }, [el('span', { style: `width:${(quota * 100).toFixed(1)}%` })]),
+    el('div', { class: 'nota', testo: s.messoDaParte < 0
+      ? 'Il mese ha gia’ mangiato l’obiettivo: quello che spendi da qui in avanti esce dai risparmi.'
+      : s.messoDaParte >= s.risparmio
+        ? `Obiettivo coperto. Ogni giorno chiuso sotto ${euro(s.soglia)} lo allarga.`
+        : `Restano ${s.giorniRestanti} giorni: chiudendoli a ${euro(s.soglia)} l’obiettivo si copre.` }),
   ]);
 }
 
@@ -123,6 +176,8 @@ export function vistaOggi(registro, config, alTocco) {
     ]),
 
     settimana(registro, s, giorno),
+
+    risparmio(s),
 
     el('div', { class: 'sezione' }, [
       el('div', { class: 'carta' }, [

@@ -6,8 +6,8 @@
 // Avvisare il resto dell'app a ogni tasto ridisegnerebbe la vista, e con essa
 // l'input che si sta usando - che perderebbe il fuoco a meta' parola.
 
-import { el, euro, oggiIso, leggiNumero } from './comune.js';
-import { statoGiorno, giorniDelMese } from '../domain/budget.js';
+import { el, euro, oggiIso, leggiNumero, nomeMese } from './comune.js';
+import { statoGiorno, giorniDelMese, risparmioDeiMesi, dopoLeFisse } from '../domain/budget.js';
 import { actualBudget } from '../domain/export.js';
 import { daJsonl, merge, aJsonl, aBackup, daBackup } from '../domain/registro.js';
 import { VERSIONE } from '../versione.js';
@@ -66,16 +66,31 @@ export function vistaBudget(registroIniziale, configIniziale, setConfig, setRegi
     const s = statoGiorno(config, registro, oggiIso());
     const [anno, mese] = oggiIso().split('-').map(Number);
     const nelMese = giorniDelMese(anno, mese);
+
+    // La catena per intero, nell'ordine in cui i soldi se ne vanno: prima le
+    // uscite fisse, poi il risparmio, e solo quello che avanza diventa il
+    // tetto. Scritta cosi' si vede subito qual e' il pezzo da toccare quando il
+    // numero in fondo non piace.
+    const passi = [`Dopo ${euro(s.usciteFisse)} di uscite fisse`];
+    if (s.risparmio) passi.push(`e ${euro(s.risparmio)} messi da parte`);
+
     conto.replaceChildren(el('div', { class: 'esito' }, s.attiva
       ? [
-        `Dopo ${euro(s.usciteFisse)} di uscite fisse restano `,
+        `${passi.join(' ')} restano `,
         el('b', { class: 'soldi', testo: euro(s.disponibile) }),
         ` per le spese di tutti i giorni. Su ${nelMese} giorni fanno `,
         el('b', { class: 'soldi', testo: euro(s.disponibile / nelMese) }),
         ' al giorno — ma il tetto vero si ricalcola ogni mattina su quello che e’ '
         + 'rimasto, quindi un giorno di troppo si recupera nei successivi.',
       ]
-      : ['Inserisci lo stipendio per vedere il tetto giornaliero.']));
+      : s.troppoRisparmio
+        ? [
+          'Fra uscite fisse e risparmio non resta niente per i giorni: ',
+          el('b', { class: 'soldi', testo: euro(dopoLeFisse(config)) }),
+          ` dopo le fisse, ${euro(s.risparmio)} da mettere da parte. `,
+          'Abbassa l’obiettivo, o il tetto giornaliero non esiste.',
+        ]
+        : ['Inserisci lo stipendio per vedere il tetto giornaliero.']));
   }
 
   // Mentre si scrive: salva e aggiorna solo il riquadro del conto.
@@ -120,6 +135,52 @@ export function vistaBudget(registroIniziale, configIniziale, setConfig, setRegi
     },
   });
 
+  /**
+   * Mese per mese, quanto e' rimasto.
+   *
+   * Il tetto giornaliero dice come sta andando oggi; questa lista dice se a
+   * fine mese sul conto e' rimasto qualcosa, che e' l'unica cosa che a fine
+   * anno si vede. I mesi che il registro copre solo a meta' restano nella
+   * lista ma fuori dal totale, segnati: un risparmio calcolato su mezzo mese di
+   * spese verrebbe alto e falso.
+   */
+  function mesiRisparmio() {
+    const { mesi, totale } = risparmioDeiMesi(config, registro, oggiIso());
+    if (!mesi.length || !statoGiorno(config, registro, oggiIso()).attiva) return null;
+
+    const contabili = mesi.filter((m) => m.contabile);
+
+    return el('div', { class: 'sezione' }, [
+      el('div', { class: 'titolo-sezione', testo: 'Mese per mese' }),
+      el('div', { class: 'carta' }, [
+        ...mesi.slice().reverse().map((m) => el('div', { class: 'campo riga-mese' }, [
+          el('label', {}, [
+            nomeMese(m.mese),
+            m.inCorso ? el('span', { class: 'fioco', testo: ' · in corso' })
+              : m.parziale ? el('span', { class: 'fioco', testo: ' · coperto a meta’' }) : null,
+          ]),
+          el('span', {
+            // Un mese coperto a meta' non merita il verde: il numero e' alto
+            // perche' mancano le spese, non perche' sia andata bene.
+            class: 'soldi esito-mese'
+              + (m.parziale ? ' incerto' : m.messoDaParte < 0 ? ' rosso' : ''),
+            testo: euro(m.messoDaParte),
+          }),
+        ])),
+        contabili.length > 1
+          ? el('div', { class: 'campo riga-mese totale-mesi' }, [
+            el('label', { testo: `Da parte in ${contabili.length} mesi chiusi` }),
+            el('span', { class: 'soldi esito-mese' + (totale < 0 ? ' rosso' : ''), testo: euro(totale) }),
+          ])
+          : null,
+        el('div', { class: 'avviso' }, [
+          'Calcolato con lo stipendio e le uscite fisse di adesso: sui mesi passati '
+          + 'e’ un’ipotesi, non un estratto conto.',
+        ]),
+      ]),
+    ]);
+  }
+
   disegnaConto();
 
   return el('div', {}, [
@@ -162,9 +223,26 @@ export function vistaBudget(registroIniziale, configIniziale, setConfig, setRegi
     ]),
 
     el('div', { class: 'sezione' }, [
+      el('div', { class: 'titolo-sezione', testo: 'Risparmio' }),
+      el('div', { class: 'carta' }, [
+        el('div', { class: 'campo' }, [
+          el('label', { testo: 'Da parte ogni mese' }),
+          campoEuro(config.risparmio, (v) => scrivendo({ risparmio: v })),
+        ]),
+        el('div', { class: 'avviso' }, [
+          'Questi soldi escono dal conto prima del tetto giornaliero, come una '
+          + 'bolletta. E’ l’unico modo perche' + '’' + ' restino: se il risparmio e’ '
+          + 'quello che avanza, il tetto se lo riprende tutto.',
+        ]),
+      ]),
+    ]),
+
+    el('div', { class: 'sezione' }, [
       el('div', { class: 'titolo-sezione', testo: 'Il conto' }),
       conto,
     ]),
+
+    mesiRisparmio(),
 
     el('div', { class: 'sezione pila' }, [
       el('div', { class: 'titolo-sezione', testo: 'Registro' }),

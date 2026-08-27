@@ -84,6 +84,14 @@ function riepilogoBanca(banca, esito, stipendio) {
       : [
         'Stipendio impostato a ', el('b', { testo: euro(stipendio.importo) }),
         ` da “${stipendio.nome}”. Cambialo in Budget se ho scelto male.`,
+        // Con un mese solo di estratto conto un accredito e' un accredito: se
+        // dentro c'era un arretrato, una tredicesima o un rimborso del 730, la
+        // banca lo scrive su una riga sola e non c'e' modo di separarlo. Con due
+        // mesi la cifra che si ripete e' lo stipendio, e il resto si vede.
+        stipendio.mesi === 1
+          ? ' L’ho visto una volta sola: se in quel mese c’era dentro un rimborso'
+            + ' o un arretrato, il numero e’ piu’ alto del tuo stipendio vero.'
+          : null,
       ]));
   }
   if (esito.rimosse.length) {
