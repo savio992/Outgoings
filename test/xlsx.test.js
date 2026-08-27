@@ -93,3 +93,41 @@ test('un file che non e' + "'" + ' uno .xlsx lo dice invece di rompersi in silen
   await assert.rejects(() => leggiXlsx(new Uint8Array([1, 2, 3, 4])), /xlsx/i);
   await assert.rejects(() => leggiXlsx(new TextEncoder().encode('ciao'.repeat(100))), /xlsx/i);
 });
+
+test('una riga con meno celle dell' + "'" + ' intestazione si scarta, non si indovina', async () => {
+  // Excel non scrive le celle vuote, e certi generatori omettono anche il
+  // riferimento della cella ("r=C6"). Allora le colonne slittano: l'importo di
+  // un accredito finisce dove ci si aspetta un addebito, e la descrizione
+  // sparisce oltre il bordo.
+  //
+  // Il segno non e' deducibile - una riga di quattro celle con un numero in
+  // terza posizione puo' essere un addebito senza accrediti o un accredito
+  // senza addebiti, e non c'e' modo di saperlo. Quindi non si sceglie: si
+  // scarta e lo si dichiara. Un registro pieno di numeri plausibili e sbagliati
+  // e' peggio di un registro con dei buchi, perche' non se ne accorge nessuno.
+  const griglia = [
+    ['Data Contabile', 'Data Valuta', 'Addebiti (euro)', 'Accrediti (euro)', 'Descrizione operazioni'],
+    ['27/08/2026', '25/08/2026', '63.03', 'PAGAMENTO POS TIZIO 25/08/2026 18.51 BARI Op.600000 carta ****0000'],
+    ['01/08/2026', '01/08/2026', '1850', 'STIPENDIO/PENSIONE DEL MESE'],
+  ];
+  const { movimenti, saltate, diagnostica } = parseEstrattoContoDaGriglia(griglia);
+
+  assert.equal(movimenti.length, 0);
+  assert.equal(saltate, 2);
+  // E soprattutto: la diagnostica lo dice, invece di lasciare il buco muto.
+  assert.equal(diagnostica.celleIntestazione, 5);
+  assert.equal(diagnostica.righeCorte, 2);
+  assert.equal(diagnostica.esempiSaltate.length, 2);
+});
+
+test('le righe complete restano leggibili accanto a quelle corte', async () => {
+  const griglia = [
+    ['Data Contabile', 'Data Valuta', 'Addebiti (euro)', 'Accrediti (euro)', 'Descrizione operazioni'],
+    ['27/08/2026', '25/08/2026', '63.03', '', 'PAGAMENTO POS TIZIO 25/08/2026 18.51 BARI Op.600000 carta ****0000'],
+    ['01/08/2026', '01/08/2026', '1850', 'STIPENDIO/PENSIONE DEL MESE'],
+  ];
+  const { movimenti, saltate } = parseEstrattoContoDaGriglia(griglia);
+  assert.equal(movimenti.length, 1);
+  assert.equal(movimenti[0].amount, 63.03);
+  assert.equal(saltate, 1);
+});
