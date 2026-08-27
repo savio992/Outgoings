@@ -22,6 +22,18 @@ export function parseImporto(testo) {
   let s = String(testo ?? '').trim();
   if (!s) return null;
 
+  // Il segno davanti all'importo lo scrive solo la lista movimenti dell'app, ed
+  // e' l'unico posto in cui uno screenshot dice da solo se i soldi sono usciti o
+  // entrati. Si stacca subito: sotto dev'esserci un numero come tutti gli altri,
+  // e l'importo resta comunque positivo - il verso e' un fatto della
+  // transazione, non della cifra.
+  let segno = null;
+  const conSegno = s.match(/^([+\u2212-])\s*/);
+  if (conSegno) {
+    segno = conSegno[1] === '+' ? 1 : -1;
+    s = s.slice(conSegno[0].length);
+  }
+
   // Il simbolo puo' stare prima o dopo, attaccato o staccato. Me lo segno e lo
   // tolgo: quello che resta deve essere solo un numero, e se non lo e' la riga
   // non era un importo. E' anche cio' che impedisce a "Caffe" di passare per un
@@ -77,7 +89,7 @@ export function parseImporto(testo) {
 
   if (simbolo !== '€') sicuro = false;
 
-  return { amount, confidence: sicuro ? 'high' : 'low', simbolo };
+  return { amount, confidence: sicuro ? 'high' : 'low', simbolo, segno };
 }
 
 /** Vero se la riga somiglia a un importo. Comodita' per il parser. */

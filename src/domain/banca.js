@@ -11,7 +11,7 @@
 
 import { parseCifra } from './importo.js';
 import { isoDelGiorno } from './tempo.js';
-import { idTransazione } from './registro.js';
+import { idTransazione, impronta, grafiaMigliore } from './registro.js';
 
 // La riga di un pagamento con carta. Dentro la descrizione c'e' tutto:
 //   PAGAMENTO POS FAMILA MEGAGEST   25/08/2026 18.51 BARI   Op.600000 carta ****0000
@@ -49,6 +49,18 @@ const GATEWAY = /^(sumup|paypal|paypall|stripe|satispay|nexi|axerve|sq|square|sh
 // trattarlo come fisso lo toglierebbe dal tetto giornaliero, che e' esattamente
 // dove una spesa del genere deve pesare.
 const FISSA = /^\s*(domiciliazione|addebito\s+(diretto|sdd|preautorizzato)|\bsdd\b|commissioni|spese\s+(bancarie|di\s+tenuta|conto)|imposta|bollo|canone|rata\s+(mutuo|finanziamento))/i;
+
+/**
+ * Vero se il tipo di operazione e' per costruzione una uscita fissa.
+ *
+ * Sta qui e non nel parser perche' la lista dei movimenti dell'app scrive lo
+ * stesso tipo d'operazione che la banca mette in cima alla descrizione: due
+ * politiche diverse su cosa sia una fissa vorrebbero dire la stessa spesa dentro
+ * il tetto giornaliero letta da una parte e fuori letta dall'altra.
+ */
+export function eOperazioneFissa(descrizione) {
+  return FISSA.test(String(descrizione ?? ''));
+}
 
 /** Divide una riga di CSV o TSV rispettando le virgolette. */
 function dividi(riga, separatore) {
@@ -272,32 +284,13 @@ const voceFissa = (v) => (typeof v === 'string'
   : chiaveFissa(v?.nome, v?.causale));
 
 /**
- * Le parole di un nome, minuscole, senza accenti e **ordinate**.
- *
- * L'ordine buttato via e' il punto: la banca scrive "BIANCHI ANNA" nei bonifici
- * ricevuti e "Anna Bianchi" in quelli inviati, e sono la stessa persona. Non
- * serve sapere quale parola sia il nome e quale il cognome - basta che le
- * parole siano le stesse.
- */
-function impronta(nome) {
-  return String(nome ?? '')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .split(/\s+/).filter(Boolean).sort()
-    .join(' ');
-}
-
-/**
- * Fra i modi diversi di scrivere lo stesso nome ne sceglie uno solo.
- *
- * Non inventa una forma nuova: sceglie fra quelle viste davvero, e sempre allo
- * stesso modo - vince chi non e' tutto maiuscolo, perche' si legge meglio, e a
- * parita' la prima in ordine alfabetico, perche' due import dello stesso file
- * devono dare lo stesso risultato.
+ * Allinea le grafie dello stesso nome, dentro un import.
  *
  * `gia` sono i nomi che il registro contiene gia': un import nuovo si allinea a
- * come le spese si chiamano adesso, invece di rinominarle tutte.
+ * come le spese si chiamano adesso, invece di rinominarle tutte. Quale grafia
+ * vinca lo decide `grafiaMigliore`, che e' la stessa regola usata dalle
+ * statistiche - due posti che scelgono in modo diverso darebbero due nomi
+ * diversi per la stessa spesa.
  */
 function unificaNomi(movimenti, gia = []) {
   const varianti = new Map();
@@ -310,12 +303,7 @@ function unificaNomi(movimenti, gia = []) {
   for (const nome of gia) aggiungi(nome);
   for (const m of movimenti) aggiungi(m.merchant);
 
-  const meglio = (a, b) => {
-    const tuttoMaiuscoloA = a === a.toUpperCase() ? 1 : 0;
-    const tuttoMaiuscoloB = b === b.toUpperCase() ? 1 : 0;
-    return tuttoMaiuscoloA - tuttoMaiuscoloB || (a < b ? -1 : a > b ? 1 : 0);
-  };
-  const scelto = new Map([...varianti].map(([k, forme]) => [k, [...forme].sort(meglio)[0]]));
+  const scelto = new Map([...varianti].map(([k, forme]) => [k, grafiaMigliore(forme)]));
 
   for (const m of movimenti) {
     const k = impronta(m.merchant);
@@ -426,7 +414,7 @@ export function parseEstrattoContoDaGriglia(griglia, opzioni = {}) {
       // volta: mutuo e rate condominiali si pagano con un bonifico come i
       // pannolini, e nessuna regola puo' distinguerli guardando la causale.
       fissa: !entrata && !pos
-        && (FISSA.test(descrizione)
+        && (eOperazioneFissa(descrizione)
           || fisseImparate.has(chiaveFissa(fuoriPos.merchant, fuoriPos.causale))
           || fisseImparate.has(chiaveFissa(fuoriPos.merchant, null))),
       operazione: pos?.operazione ?? null,

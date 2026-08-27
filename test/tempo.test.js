@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { risolviTempo, istanteLocale, isoRoma } from '../src/domain/tempo.js';
+import {
+  risolviTempo, istanteLocale, isoRoma, risolviGiornoApp, risolviIstanteApp,
+} from '../src/domain/tempo.js';
 
 // Mercoledi' 26 agosto 2026, ora legale.
 const MERCOLEDI = new Date('2026-08-26T10:00:00+02:00');
@@ -87,4 +89,49 @@ test('l' + "'" + ' ora ripetuta di ottobre sceglie la seconda occorrenza', () =>
 
 test('l' + "'" + ' ora inesistente di marzo scivola in avanti invece di esplodere', () => {
   assert.equal(isoRoma(istanteLocale(2026, 3, 29, 2, 30)), '2026-03-29T03:30:00+02:00');
+});
+
+// Le date assolute della schermata dei movimenti. Qui non c'e' niente di
+// relativo da ricostruire: la data e' scritta, e o si legge o non si legge.
+
+test('il mese abbreviato vale come quello per esteso', () => {
+  for (const [testo, giorno] of [
+    ['27 ago 2026', '2026-08-27'],
+    ['1 gen 2026', '2026-01-01'],
+    ['31 dic 2025', '2025-12-31'],
+    ['5 set 2026', '2026-09-05'],
+    ['5 sett 2026', '2026-09-05'],
+    ['5 set. 2026', '2026-09-05'],
+    ['5 settembre 2026', '2026-09-05'],
+  ]) {
+    assert.deepEqual(risolviGiornoApp(testo, MERCOLEDI), { giorno, confidence: 'high' }, testo);
+  }
+});
+
+test('la data numerica dell' + "'" + ' app si legge, quella impossibile no', () => {
+  assert.deepEqual(risolviGiornoApp('27/08/2026', MERCOLEDI), { giorno: '2026-08-27', confidence: 'high' });
+  // Il 31 febbraio non esiste: senza controllarlo diventerebbe il 3 marzo, e
+  // una data inventata non si vede piu'.
+  assert.equal(risolviGiornoApp('31/02/2026', MERCOLEDI), null);
+  assert.equal(risolviGiornoApp('31 feb 2026', MERCOLEDI), null);
+  assert.equal(risolviGiornoApp('27/13/2026', MERCOLEDI), null);
+});
+
+test('data e ora insieme fanno un istante vero', () => {
+  assert.deepEqual(risolviIstanteApp('27/08/2026 16:36'), {
+    giorno: '2026-08-27',
+    occurredAt: '2026-08-27T16:36:00+02:00',
+    ts: istanteLocale(2026, 8, 27, 16, 36),
+    confidence: 'high',
+  });
+  // Con i due punti letti come un punto si legge lo stesso, ma si controlla.
+  assert.equal(risolviIstanteApp('27/08/2026 16.36').confidence, 'low');
+  // L'ora solare la sceglie il calendario, non chi legge.
+  assert.equal(risolviIstanteApp('15/01/2026 09:00').occurredAt, '2026-01-15T09:00:00+01:00');
+});
+
+test('un istante che non e' + "'" + ' un istante resta null', () => {
+  for (const t of ['27/08/2026', '16:36', '27/08/2026 25:00', '27/08/2026 16:99', '', null]) {
+    assert.equal(risolviIstanteApp(t), null, String(t));
+  }
 });

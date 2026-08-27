@@ -12,15 +12,21 @@ export function elencoVuoto(testo) {
   return el('div', { class: 'vuoto', testo });
 }
 
-/** Una riga di spesa. Il pallino ambra segnala una lettura da confermare. */
-export function spesa(t, alTocco) {
+/**
+ * Una riga di spesa. Il pallino ambra segnala una lettura da confermare.
+ *
+ * `notaFissa` sostituisce la riga piccola sotto il nome. Serve dove il posto e'
+ * gia' noto - dentro il foglio di un esercente sono tutte spese sue, e ripetere
+ * tredici volte la stessa citta' occupa la riga in cui servirebbe il giorno.
+ */
+export function spesa(t, alTocco, notaFissa) {
   const luogo = [t.city, t.region].filter(Boolean).join(', ');
   // Un accredito e un affitto non sono spese di tutti i giorni, e nell'elenco
   // devono vedersi diversi: altrimenti un giorno con l'affitto sembra un giorno
   // in cui hai speso settecento euro.
   // La causale di un bonifico vale piu' di tutto il resto: "Pannolini" dice
   // quello che il nome del beneficiario da solo non dice.
-  const nota = t.causale
+  const nota = notaFissa ?? t.causale
     ?? (t.entrata ? 'accredito' : t.fissa ? 'uscita fissa' : luogo);
 
   return el('button', {
@@ -61,7 +67,7 @@ function perGiorno(spese) {
  * Le frecce si spengono dove il registro finisce: poter andare indietro
  * all'infinito su mesi vuoti fa sembrare che i dati siano spariti.
  */
-function barraMesi(mese, mesi, vaiA) {
+export function barraMesi(mese, mesi, vaiA) {
   const primo = mesi[mesi.length - 1];
   const ultimo = mesi[0];
   const freccia = (verso, dove, attiva) => el('button', {
