@@ -238,6 +238,20 @@ const BONIFICO = /^(BONIFICO|POSTAGIRO|GIROCONTO|ACCREDITO|STIPENDIO|PENSIONE)/;
 // arrivando prima dell'importo vero se ne prenderebbe il posto.
 const NUMERO_LUNGO = /^\d{10,}\s*(\.\.\.|\u2026)?$/;
 
+// Un nome vero ha almeno due lettere di fila. Non e' una regola sul mondo -
+// esistono negozi che si chiamano con una lettera sola - ma su cosa sbaglia
+// l'OCR: a sinistra di ogni movimento c'e' un'icona, l'orologio del "non
+// contabilizzato" o la freccia verde dell'accredito, e Live Text ogni tanto la
+// restituisce come testo: la freccia diventa "→I", il tondo diventa "O".
+//
+// Una lettera sola cosi' e' innocua dove capita di solito, prima del tipo
+// d'operazione: apre una voce che nessun importo completera' e sparisce. Ma se
+// esce *dopo* il tipo prende il posto dell'esercente, e allora il nome vero apre
+// una voce nuova e si porta via il tipo - cioe' il verso e la fissa. Nel
+// registro resta una riga che si chiama "O" da 7,50 €, e con la fiducia alta,
+// perche' tutto il resto e' a posto.
+const RE_NOME = /[a-zA-Z][^a-zA-Z]*[a-zA-Z]/;
+
 /**
  * Numera le spese dentro ogni giorno, contando **dalla piu' vecchia**.
  *
@@ -326,7 +340,7 @@ function classifica(riga, capturedAt, voce) {
   if (RE_CITTA.test(riga)) return { tipo: 'citta' };
   if (TRACCIA.test(riga)) return { tipo: 'riferimento' };
   if (CODICE.test(riga) && BONIFICO.test(voce?.tipo ?? '')) return { tipo: 'riferimento' };
-  if (/[a-zA-Z]/.test(riga)) return { tipo: 'nome' };
+  if (RE_NOME.test(riga)) return { tipo: 'nome' };
   return { tipo: 'scarto' };
 }
 
