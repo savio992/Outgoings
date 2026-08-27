@@ -7,8 +7,8 @@
 // dicono se oggi e' un'eccezione o l'ennesimo giorno uguale - un numero solo non
 // lo puo' dire.
 
-import { el, euro, euroTondo, oggiIso, nomeGiorno, siglaGiorno, anima } from './comune.js';
-import { statoGiorno, mediaGiornaliera, ultimiGiorni } from '../domain/budget.js';
+import { el, euro, euroTondo, oggiIso, nomeGiorno, siglaGiorno, dataBreve, anima } from './comune.js';
+import { statoGiorno, mediaGiornaliera, ultimiGiorni, saldoStimato } from '../domain/budget.js';
 import { giornoDi } from '../domain/registro.js';
 import { spesa, elencoVuoto } from './registro.js';
 
@@ -22,27 +22,110 @@ function umore(s) {
   return s.soglia > 0 && s.spesoOggi / s.soglia >= .6 ? 'attento' : 'sereno';
 }
 
+/**
+ * Il numero grande e le due righe che lo spiegano.
+ *
+ * Quando il mese e' gia' sfondato il tetto di oggi vale zero, e mostrarlo -
+ * "0,00 € spesi su 0,00 €" - non e' un'informazione: dice solo che oggi non
+ * hai ancora comprato niente, quando la cosa da sapere e' di quanto sei sotto.
+ * Li' il numero grande diventa lo sfondamento del mese, che e' la risposta vera
+ * a "quanto posso ancora spendere".
+ */
 function testata(s) {
+  const sfondato = s.attiva && s.restoMese < 0;
   const cifra = el('div', { class: 'grande soldi' });
-  const valore = s.attiva ? Math.abs(s.residuo) : s.spesoOggi;
-  anima(cifra, valore, (n) => euro(n));
+  anima(cifra, !s.attiva ? s.spesoOggi
+    : sfondato ? Math.abs(s.restoMese) : Math.abs(s.residuo), (n) => euro(n));
 
   // La barra e' la stessa informazione dell'anello di prima, ma leggibile anche
   // quando la quota e' minuscola: una tacca che parte da sinistra si vede, un
   // arco del tre per cento no.
-  const quota = s.attiva && s.soglia > 0 ? Math.min(1, Math.max(0, s.spesoOggi / s.soglia)) : 0;
+  const quota = !s.attiva ? 0
+    : sfondato ? 1
+      : s.soglia > 0 ? Math.min(1, Math.max(0, s.spesoOggi / s.soglia)) : 0;
+
+  const sotto = !s.attiva
+    ? (s.troppoRisparmio
+      ? `Fra uscite fisse e ${euro(s.risparmio)} da mettere da parte non resta niente per i giorni`
+      : 'Imposta stipendio e uscite fisse per avere un tetto giornaliero')
+    : sfondato
+      ? `${euro(s.spesoMese)} spesi su ${euro(s.disponibile)} del mese`
+      : `${euro(s.spesoOggi)} spesi su ${euro(s.soglia)}`;
 
   return el('div', { class: `testata ${umore(s)}` }, [
     el('div', { class: 'occhiello', testo: !s.attiva ? 'spesi oggi'
-      : s.residuo < 0 ? 'oltre il tetto di oggi'
-        : s.restoMese < 0 ? 'il mese e’ gia’ oltre' : 'puoi ancora spendere' }),
+      : sfondato ? 'il mese e’ gia’ oltre'
+        : s.residuo < 0 ? 'oltre il tetto di oggi' : 'puoi ancora spendere' }),
     cifra,
     s.attiva ? el('div', { class: 'barra' }, [
       el('span', { style: `width:${(quota * 100).toFixed(1)}%` }),
     ]) : null,
-    el('div', { class: 'sottotitolo' }, s.attiva
-      ? [`${euro(s.spesoOggi)} spesi su ${euro(s.soglia)}`]
-      : ['Imposta stipendio e uscite fisse per avere un tetto giornaliero']),
+    el('div', { class: 'sottotitolo' }, [sotto]),
+  ]);
+}
+
+/**
+ * Quanti soldi ci sono, e quanti ne restano da parte.
+ *
+ * Sta sotto il grafico e non nel blocco colorato per un motivo: la testata
+ * risponde a "quanto posso spendere oggi", questa a "come sta andando il mese".
+ * Sono due domande diverse e due ritmi diversi - una si guarda entrando in un
+ * bar, l'altra il venerdi' sera.
+ */
+function soldi(s, saldo) {
+  if (!saldo && !s.risparmio) return null;
+
+  const fatto = Math.max(0, Math.min(s.risparmio, s.messoDaParte));
+  const quota = Math.max(0, Math.min(1, s.messoDaParte / (s.risparmio || 1)));
+  const stato = s.messoDaParte < 0 ? 'oltre' : s.messoDaParte >= s.risparmio ? 'sereno' : 'attento';
+
+  // Il saldo dichiarato dalla banca e quello stimato da noi non sono la stessa
+  // cosa. Finche' coincidono si scrive il giorno del saldo e basta; appena il
+  // registro conosce spese che la banca non ha ancora visto, il numero grande
+  // diventa la stima e si dice da dove viene - altrimenti sembrerebbe che la
+  // banca abbia scritto una cifra che non ha mai scritto.
+  const scostato = saldo && saldo.movimentiDopo > 0;
+
+  return el('div', { class: `carta sezione risparmio ${s.risparmio ? stato : ''}` }, [
+    saldo ? el('div', { class: 'giorno' }, [
+      el('span', { testo: scostato ? 'Sul conto · stimato' : 'Sul conto' }),
+      el('span', {
+        // Il rosso qui vuol dire una cosa sola: il conto e' sotto zero. Se lo
+        // prendesse dallo stato del risparmio direbbe che duemila euro sul
+        // conto sono un problema.
+        class: 'totale soldi saldo' + (saldo.stimato < 0 ? ' rosso' : ''),
+        testo: euro(saldo.stimato),
+      }),
+    ]) : null,
+    saldo ? el('div', { class: 'nota', testo: scostato
+      ? `${euro(saldo.dichiarato)} al ${dataBreve(saldo.al)} secondo la banca, meno `
+        + `${saldo.movimentiDopo} ${saldo.movimentiDopo === 1 ? 'movimento' : 'movimenti'} che ha visto solo l’app.`
+      : `Come lo scrive la banca, al ${dataBreve(saldo.al)}.` }) : null,
+    // Un saldo vecchio non e' sbagliato, e' scaduto: dirlo costa una riga e
+    // evita di far passare per il conto di oggi quello di tre settimane fa.
+    saldo && saldo.giorni >= 10
+      ? el('div', { class: 'nota fioco', testo: `Il saldo ha ${saldo.giorni} giorni: `
+        + 'scarica un estratto conto nuovo per rimetterlo a posto.' })
+      : null,
+
+    s.risparmio && saldo ? el('div', { class: 'divisorio' }) : null,
+
+    s.risparmio ? el('div', { class: 'giorno' }, [
+      el('span', { testo: 'Da parte questo mese' }),
+      el('span', {
+        class: 'totale soldi obiettivo',
+        // Sotto zero non c'e' niente da parte: c'e' un buco, e il numero da
+        // scrivere e' quello, col segno. Mostrare "0,00 €" sarebbe piu' gentile
+        // e direbbe una cosa falsa.
+        testo: s.messoDaParte < 0 ? euro(s.messoDaParte) : `${euro(fatto)} di ${euro(s.risparmio)}`,
+      }),
+    ]) : null,
+    s.risparmio ? el('div', { class: 'barra' }, [el('span', { style: `width:${(quota * 100).toFixed(1)}%` })]) : null,
+    s.risparmio ? el('div', { class: 'nota', testo: s.messoDaParte < 0
+      ? 'Il mese ha gia’ mangiato l’obiettivo: quello che spendi da qui in avanti esce dai risparmi.'
+      : s.messoDaParte >= s.risparmio
+        ? `Obiettivo coperto. Ogni giorno chiuso sotto ${euro(s.soglia)} lo allarga.`
+        : `Restano ${s.giorniRestanti} giorni: chiudendoli a ${euro(s.soglia)} l’obiettivo si copre.` }) : null,
   ]);
 }
 
@@ -123,6 +206,8 @@ export function vistaOggi(registro, config, alTocco) {
     ]),
 
     settimana(registro, s, giorno),
+
+    soldi(s, saldoStimato(config, registro, giorno)),
 
     el('div', { class: 'sezione' }, [
       el('div', { class: 'carta' }, [

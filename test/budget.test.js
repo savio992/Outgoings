@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { statoGiorno, giorniDelMese, disponibileDelMese, totaleUsciteFisse, mediaGiornaliera, ultimiGiorni } from '../src/domain/budget.js';
+import { statoGiorno, giorniDelMese, disponibileDelMese, totaleUsciteFisse, mediaGiornaliera, ultimiGiorni, risparmioDeiMesi, saldoStimato } from '../src/domain/budget.js';
 
 const CONFIG = {
   stipendio: 2000,
@@ -148,4 +148,133 @@ test('leggiNumero accetta la virgola, che e' + "'" + ' quello che da' + "'" + ' 
   assert.equal(leggiNumero('   '), 0);
   assert.ok(Number.isNaN(leggiNumero('ciao')));
   assert.ok(Number.isNaN(leggiNumero('-5')));
+});
+
+// --- il risparmio ---------------------------------------------------------
+
+const CON_RISPARMIO = { ...CONFIG, risparmio: 300 };
+
+test('il risparmio si toglie prima del tetto, non dopo', () => {
+  assert.equal(disponibileDelMese(CON_RISPARMIO), 700);
+  const s = statoGiorno(CON_RISPARMIO, [], '2026-08-01');
+  // 700 su 31 giorni, non 1000: e' tutta la differenza fra risparmiare e
+  // sperare che avanzi qualcosa.
+  assert.equal(s.soglia, 22.58);
+  assert.equal(s.risparmio, 300);
+});
+
+test('a mese intatto il messo da parte e' + "'" + ' tutto quello che entra meno le fisse', () => {
+  const s = statoGiorno(CON_RISPARMIO, [], '2026-08-01');
+  assert.equal(s.messoDaParte, 1000);
+});
+
+test('spendendo dentro il tetto l' + "'" + ' obiettivo resta coperto', () => {
+  const registro = [spesa('2026-08-01', 20), spesa('2026-08-02', 20)];
+  const s = statoGiorno(CON_RISPARMIO, registro, '2026-08-02');
+  assert.equal(s.messoDaParte, 960);
+  assert.ok(s.messoDaParte >= s.risparmio);
+});
+
+test('sforato il disponibile si intacca l' + "'" + ' obiettivo, ma resta qualcosa da parte', () => {
+  const s = statoGiorno(CON_RISPARMIO, [spesa('2026-08-01', 900)], '2026-08-01');
+  assert.equal(s.restoMese, -200);
+  assert.equal(s.messoDaParte, 100);
+});
+
+test('oltre lo stipendio il messo da parte e' + "'" + ' negativo, non zero', () => {
+  // Non e' un risparmio piccolo: e' il gruzzolo che si sta consumando, e
+  // arrotondarlo a zero sarebbe la bugia piu' comoda di tutta l'app.
+  const s = statoGiorno(CON_RISPARMIO, [spesa('2026-08-01', 1200)], '2026-08-01');
+  assert.equal(s.messoDaParte, -200);
+});
+
+test('un obiettivo piu' + "'" + ' grande di quello che resta spegne il tetto e lo dice', () => {
+  const s = statoGiorno({ ...CONFIG, risparmio: 1500 }, [], '2026-08-01');
+  assert.equal(s.attiva, false);
+  assert.equal(s.troppoRisparmio, true);
+  // Senza stipendio il caso e' un altro, e la frase da mostrare pure.
+  assert.equal(statoGiorno({ stipendio: 0, risparmio: 300 }, [], '2026-08-01').troppoRisparmio, false);
+});
+
+test('mese per mese: i mesi coperti a meta' + "'" + ' restano fuori dal totale', () => {
+  const registro = [
+    // luglio: il registro parte a mese iniziato, quindi non e' un risultato
+    spesa('2026-07-20', 100),
+    // agosto: chiuso e coperto per intero
+    spesa('2026-08-05', 400),
+    // settembre: e' il mese in corso
+    spesa('2026-09-02', 50),
+  ];
+  const { mesi, totale } = risparmioDeiMesi(CON_RISPARMIO, registro, '2026-09-10');
+  assert.deepEqual(mesi.map((m) => m.mese), ['2026-07', '2026-08', '2026-09']);
+  assert.equal(mesi[0].parziale, true);
+  assert.equal(mesi[1].contabile, true);
+  assert.equal(mesi[2].inCorso, true);
+  // 2000 - 1000 di fisse - 400 spesi = 600 messi da parte ad agosto, e basta.
+  assert.equal(mesi[1].messoDaParte, 600);
+  assert.equal(totale, 600);
+});
+
+test('mese per mese: i mesi futuri non esistono ancora', () => {
+  const registro = [spesa('2026-08-05', 400), spesa('2026-09-02', 50)];
+  const { mesi } = risparmioDeiMesi(CON_RISPARMIO, registro, '2026-08-31');
+  assert.deepEqual(mesi.map((m) => m.mese), ['2026-08']);
+});
+
+test('senza registro non c' + "'" + 'e' + "'" + ' niente da raccontare', () => {
+  assert.deepEqual(risparmioDeiMesi(CON_RISPARMIO, [], '2026-08-31'), { mesi: [], totale: 0 });
+});
+
+// --- il saldo -------------------------------------------------------------
+
+const CON_SALDO = { ...CONFIG, saldo: { importo: 2629.23, al: '2026-08-27' } };
+const entrata = (giorno, amount) => ({ ...spesa(giorno, amount), entrata: true });
+
+test('senza un saldo salvato non si stima niente', () => {
+  assert.equal(saldoStimato(CONFIG, [], '2026-08-30'), null);
+  assert.equal(saldoStimato({ saldo: { importo: 100 } }, [], '2026-08-30'), null, 'un saldo senza data non vale');
+});
+
+test('senza movimenti dopo quella data il saldo e' + "'" + ' ancora quello', () => {
+  const s = saldoStimato(CON_SALDO, [spesa('2026-08-20', 50)], '2026-08-28');
+  assert.equal(s.stimato, 2629.23);
+  assert.equal(s.movimentiDopo, 0);
+  assert.equal(s.giorni, 1);
+});
+
+test('le spese viste dopo il saldo lo abbassano, gli accrediti lo alzano', () => {
+  const registro = [
+    spesa('2026-08-20', 50),   // gia' dentro il saldo della banca
+    spesa('2026-08-28', 30),
+    spesa('2026-08-29', 12.5),
+    entrata('2026-08-29', 100),
+  ];
+  const s = saldoStimato(CON_SALDO, registro, '2026-08-30');
+  assert.equal(s.movimentiDopo, 3);
+  assert.equal(s.stimato, 2686.73);
+  assert.equal(s.dichiarato, 2629.23, 'il dato della banca resta separato dalla stima');
+});
+
+test('anche le uscite fisse escono dal conto', () => {
+  // Al tetto giornaliero il mutuo non interessa; al saldo si', ed e' l'unico
+  // posto dell'app in cui la distinzione non si applica.
+  const mutuo = { ...spesa('2026-08-28', 630), fissa: true };
+  assert.equal(saldoStimato(CON_SALDO, [mutuo], '2026-08-29').stimato, 1999.23);
+});
+
+test('del giorno del saldo contano solo le spese che la banca non aveva', () => {
+  const registro = [
+    // dall'estratto conto: e' gia' dentro il saldo che l'estratto conto dichiara
+    { ...spesa('2026-08-27', 63.03), source: 'banca' },
+    // vista dalla notifica, dopo aver scaricato il file
+    { ...spesa('2026-08-27', 3.5), source: 'notifica' },
+  ];
+  const s = saldoStimato(CON_SALDO, registro, '2026-08-27');
+  assert.equal(s.movimentiDopo, 1);
+  assert.equal(s.stimato, 2625.73);
+});
+
+test('un saldo negativo resta negativo', () => {
+  const rosso = { ...CONFIG, saldo: { importo: -120.4, al: '2026-08-27' } };
+  assert.equal(saldoStimato(rosso, [], '2026-08-27').stimato, -120.4);
 });

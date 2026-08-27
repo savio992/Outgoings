@@ -84,7 +84,19 @@ function riepilogoBanca(banca, esito, stipendio) {
       : [
         'Stipendio impostato a ', el('b', { testo: euro(stipendio.importo) }),
         ` da “${stipendio.nome}”. Cambialo in Budget se ho scelto male.`,
+        // Con un mese solo di estratto conto un accredito e' un accredito: se
+        // dentro c'era un arretrato, una tredicesima o un rimborso del 730, la
+        // banca lo scrive su una riga sola e non c'e' modo di separarlo. Con due
+        // mesi la cifra che si ripete e' lo stipendio, e il resto si vede.
+        stipendio.mesi === 1
+          ? ' L’ho visto una volta sola: se in quel mese c’era dentro un rimborso'
+            + ' o un arretrato, il numero e’ piu’ alto del tuo stipendio vero.'
+          : null,
       ]));
+  }
+  if (banca.saldo) {
+    pezzi.push(riga('Sul conto ', el('b', { testo: euro(banca.saldo.disponibile) }),
+      ` al ${dataBreve(banca.saldo.al)}, come lo scrive la banca.`));
   }
   if (esito.rimosse.length) {
     pezzi.push(el('div', { class: 'minuta' }, [
@@ -173,7 +185,24 @@ export function apriIncolla({ registro, config, salvaRegistro, salvaConfig }) {
       // hai messo tu con la deduzione di un'euristica e' un danno, non un aiuto.
       const trovato = stipendioDaMovimenti(banca.movimenti);
       const stipendio = trovato && { ...trovato, gia: Number(config.stipendio) > 0 };
-      if (trovato && !stipendio.gia) salvaConfig({ ...config, stipendio: trovato.importo });
+
+      // Il saldo invece si sovrascrive volentieri: e' un fatto scritto dalla
+      // banca, non una deduzione. L'unica condizione e' che sia piu' recente di
+      // quello che c'e' gia' - reimportare un estratto conto vecchio non deve
+      // far tornare indietro il saldo di oggi.
+      const piuRecente = banca.saldo && banca.saldo.al >= (config.saldo?.al ?? '');
+
+      // Una sola scrittura: due `salvaConfig` di fila partirebbero entrambe
+      // dallo stesso `config`, e la seconda cancellerebbe la prima.
+      const patch = {
+        ...(trovato && !stipendio.gia ? { stipendio: trovato.importo } : {}),
+        ...(piuRecente ? { saldo: {
+          importo: banca.saldo.disponibile,
+          contabile: banca.saldo.contabile,
+          al: banca.saldo.al,
+        } } : {}),
+      };
+      if (Object.keys(patch).length) salvaConfig({ ...config, ...patch });
       salvaRegistro(risultato.registro);
       esito.replaceChildren(el('div', { class: 'carta' }, [riepilogoBanca(banca, risultato, stipendio)]));
       return true;

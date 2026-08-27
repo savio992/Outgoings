@@ -25,6 +25,18 @@ const POS_STRETTO = /^PAGAMENTO\s+POS\s+(.+?)\s+(\d{2})\/(\d{2})\/(\d{4})\s+(\d{
 
 const RE_DATA = /^(\d{2})\/(\d{2})\/(\d{4})$/;
 
+// Il preambolo dell'estratto conto, quello sopra l'intestazione delle colonne.
+// Dentro c'e' l'unica cosa che il registro da solo non puo' sapere: quanti soldi
+// ci sono davvero sul conto, e a che data.
+const SALDO_AL = /saldo\s+al\s*:?\s*(\d{2}\/\d{2}\/\d{4})/i;
+const SALDO_CONTABILE = /saldo\s+contabile\s*:?\s*([+-]?[\d.,]+)/i;
+const SALDO_DISPONIBILE = /saldo\s+disponibile\s*:?\s*([+-]?[\d.,]+)/i;
+
+/** "+2.648,22" -> 2648.22, segno compreso: un conto puo' andare in rosso. */
+function cifraConSegno(testo) {
+  return parseCifra(String(testo ?? '').replace(/^\+/, ''));
+}
+
 // I gateway di pagamento mettono il proprio nome davanti a quello
 // dell'esercente: "SumUp  *Gocce di caffe" e' il bar sotto casa, non SumUp.
 // Senza toglierlo lo stesso posto compare con due nomi a seconda del terminale,
@@ -139,8 +151,21 @@ export function leggiPos(descrizione) {
 // sono le ultime. Senza tirarle fuori nell'elenco si legge "SEPA ISTANTANEO
 // TRN CCTX...", che non e' un'informazione.
 const BENEFICIARIO = /\bBENEF\.?\s*(.+)$/i;
-const MITTENTE = /\bDA\s+(\p{Lu}[\p{L}\s'.]*(?:\s+PER\s+.+)?)$/u;
+// "DA" e "PER" la banca li scrive maiuscoli nei bonifici e minuscoli negli
+// accrediti dello stipendio; il nome invece comincia sempre per maiuscola, ed e'
+// quella - non il caso delle due parole chiave - a garantire che dopo il "da" ci
+// sia un nome e non una parola qualunque.
+const MITTENTE = /\b[Dd][Aa]\s+(\p{Lu}[\p{L}\s'.]*(?:\s+[Pp][Ee][Rr]\s+.+)?)$/u;
 const DOMICILIATO = /^\s*DOMICILIAZIONE\s*(?:\([^)]*\))?\s*(.+?)(?:\s+CID[.\s:]|\s+MAN[.\s:]|$)/i;
+
+// Il codice di tracciamento e il BIC che lo accompagna stanno in mezzo, fra il
+// nome e la causale: "STIPENDIO/PENSIONE Da RCS INNOVATION TRN 0306927... 
+// BCITITMMXXX per Emolumenti 07-2026". Finche' restano li' il nome non arriva
+// in fondo alla riga e nessuna delle due parti si legge - lo stipendio finiva
+// nell'elenco col suo TRN per intero. TRN e' sempre maiuscolo, quindi la
+// regola non ha bisogno di essere insensibile alle maiuscole, e cosi' non si
+// mangia una parola qualunque che venga dopo.
+const TRACCIA = /\s*\bTRN\b(?:\s+[A-Z0-9]{6,})+/;
 
 /** Divide "Tizio PER una causale" nelle sue due parti. */
 function conCausale(testo) {
@@ -165,7 +190,7 @@ const PREFISSI = /^(addebito\s+(sdd|diretto)|disposizione\s+di|pagamento|bonific
  * meglio di un nome inventato.
  */
 export function leggiNonPos(descrizione) {
-  const testo = String(descrizione ?? '').replace(/\s{2,}/g, ' ').trim();
+  const testo = String(descrizione ?? '').replace(/\s{2,}/g, ' ').replace(TRACCIA, '').trim();
 
   const domiciliato = testo.match(DOMICILIATO);
   if (domiciliato) return { merchant: domiciliato[1].trim(), causale: null };
@@ -225,6 +250,28 @@ export function parseEstrattoConto(testo, opzioni) {
 const normalizza = (nome) => String(nome ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
 
 /**
+ * La chiave con cui si ricorda che un movimento e' un'uscita fissa.
+ *
+ * Il beneficiario da solo non basta: allo stesso nome vanno sia il mutuo sia
+ * venti euro di pannolini, e ricordare "Adriana Bacchi" toglierebbe dal tetto
+ * anche i pannolini - cioe' proprio la spesa discrezionale che sul tetto deve
+ * pesare. La causale e' l'unica cosa che li distingue.
+ *
+ * Il prezzo e' che una causale che cambia ogni mese - "Rata 3", "Rata 4" - va
+ * rimarcata. Si sbaglia da quella parte apposta: dimenticare una fissa si vede
+ * subito e si sistema con un tocco, mentre una spesa vera nascosta fra le fisse
+ * non si vede mai piu'.
+ */
+export function chiaveFissa(nome, causale) {
+  return [nome, causale].filter(Boolean).map(normalizza).join(' | ');
+}
+
+/** Le voci vecchie erano stringhe: valgono per il beneficiario intero. */
+const voceFissa = (v) => (typeof v === 'string'
+  ? chiaveFissa(v, null)
+  : chiaveFissa(v?.nome, v?.causale));
+
+/**
  * Le parole di un nome, minuscole, senza accenti e **ordinate**.
  *
  * L'ordine buttato via e' il punto: la banca scrive "BIANCHI ANNA" nei bonifici
@@ -281,10 +328,11 @@ export function parseEstrattoContoDaGriglia(griglia, opzioni = {}) {
   // I beneficiari che l'utente ha gia' marcato come uscite fisse. Impararli da
   // lui e' l'unico modo onesto: la ricorrenza non si vede in un mese, e la
   // causale di un bonifico puo' dire "mutuo" come "pannolini".
-  const fisseImparate = new Set((opzioni.fisse ?? []).map(normalizza));
+  const fisseImparate = new Set((opzioni.fisse ?? []).map(voceFissa));
   let col = null;
   const movimenti = [];
   let saltate = 0;
+  const saldo = { contabile: null, disponibile: null, al: null };
 
   // Cosa ha visto il lettore, per quando non riconosce niente. Un "non
   // funziona" senza sapere cosa c'era dentro il file costa un giro di
@@ -306,7 +354,18 @@ export function parseEstrattoContoDaGriglia(griglia, opzioni = {}) {
 
     if (!col) {
       // Prima dell'intestazione c'e' il preambolo: intestatario, saldi, date.
-      // Non e' spazzatura da ignorare in blocco, e' semplicemente un'altra cosa.
+      // Non e' spazzatura da ignorare in blocco, e' semplicemente un'altra cosa
+      // - e i saldi che ci stanno dentro sono l'unico dato che il registro,
+      // fatto di soli movimenti, non potrebbe mai ricavare da solo.
+      for (const cella of celle) {
+        const al = cella.match(SALDO_AL);
+        if (al) saldo.al = giornoDaData(al[1]);
+        const contabile = cella.match(SALDO_CONTABILE);
+        if (contabile) saldo.contabile = cifraConSegno(contabile[1]);
+        const disponibile = cella.match(SALDO_DISPONIBILE);
+        if (disponibile) saldo.disponibile = cifraConSegno(disponibile[1]);
+      }
+
       if (eIntestazione(celle)) {
         const forse = indiceColonne(celle);
         if (intestazioneUtile(forse)) {
@@ -367,7 +426,9 @@ export function parseEstrattoContoDaGriglia(griglia, opzioni = {}) {
       // volta: mutuo e rate condominiali si pagano con un bonifico come i
       // pannolini, e nessuna regola puo' distinguerli guardando la causale.
       fissa: !entrata && !pos
-        && (FISSA.test(descrizione) || fisseImparate.has(normalizza(fuoriPos.merchant))),
+        && (FISSA.test(descrizione)
+          || fisseImparate.has(chiaveFissa(fuoriPos.merchant, fuoriPos.causale))
+          || fisseImparate.has(chiaveFissa(fuoriPos.merchant, null))),
       operazione: pos?.operazione ?? null,
       source: 'banca',
       confidence: 'high',
@@ -390,6 +451,9 @@ export function parseEstrattoContoDaGriglia(griglia, opzioni = {}) {
     // Il periodo coperto serve a chi importa: e' l'intervallo che l'estratto
     // conto ha il diritto di riscrivere.
     periodo: giorni.length ? { da: giorni[0], a: giorni[giorni.length - 1] } : null,
+    // Senza data il saldo non vale niente: un numero di soldi senza il giorno a
+    // cui si riferisce non si puo' ne' aggiornare ne' smentire.
+    saldo: saldo.al && saldo.disponibile !== null ? saldo : null,
     saltate,
   };
 }

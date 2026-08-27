@@ -41,12 +41,29 @@ periodo che copre vince lui e riscrive, perche' chiama gli esercenti in un altro
 modo e abbinarli a naso vorrebbe dire sbagliare in silenzio. Gli screenshot
 servono per le spese di oggi, che la banca contabilizzera' fra giorni.
 
+**Il saldo e' un fatto con una data, la stima e' un conto nostro.** Il saldo lo
+scrive la banca in cima all'estratto conto ed e' vero il giorno in cui l'ha
+scritto. Le spese arrivate dopo il registro le ha - sono quelle delle notifiche,
+che la banca contabilizzera' fra giorni - e sottrarle e' l'unica cosa che questa
+app puo' fare e quella della banca no. Ma i due numeri restano separati e
+etichettati: spacciare per saldo una cifra che nessuna banca ha mai scritto
+sarebbe il modo piu' rapido di rendere inutile l'unico dato certo.
+
+**Il risparmio si toglie prima, non dopo.** Quanto si vuole mettere da parte
+esce dal disponibile insieme alle uscite fisse, e solo cio' che avanza diventa
+il tetto giornaliero. Trattarlo come l'avanzo di fine mese vuol dire non
+risparmiare: il tetto si prende comunque tutto, ed e' il motivo per cui a fine
+mese i conti tornano e sul conto non resta niente.
+
 **Uscita fissa e' solo cio' che si ripete da solo.** Domiciliazioni, addebiti
 diretti, commissioni, canoni: mandati che non richiedono una decisione. Un
 bonifico no - puo' essere l'affitto ma anche i pannolini per un'amica, ed e'
 una spesa discrezionale che sul tetto del giorno deve pesare. La regola guarda
 il tipo di operazione e non la ricorrenza: con un mese solo di estratto conto
-una ricorrenza non e' osservabile.
+una ricorrenza non e' osservabile. Quello che l'utente marca a mano si ricorda
+per **beneficiario e causale**, non per il solo nome: allo stesso nome vanno sia
+il mutuo sia i pannolini. Si sbaglia per difetto apposta - una fissa dimenticata
+si vede e si sistema con un tocco, una spesa vera nascosta fra le fisse no.
 
 **Lo stesso nome scritto in due modi e' un nome solo.** La banca scrive
 "BIANCHI ANNA" nei bonifici ricevuti e "Anna Bianchi" in quelli inviati; il bar
@@ -69,7 +86,7 @@ terminale, e nel registro sembrano due esercenti.
       banca.js       estratto conto: la sorgente piu' precisa delle tre
       xlsx.js        legge il .xlsx della banca: ZIP, XML, seriali di Excel
       export.js      interfaccia Destinazione, oggi solo Actual Budget
-      budget.js      stipendio, uscite fisse, tetto giornaliero a recupero
+      budget.js      stipendio, uscite fisse, risparmio, tetto a recupero
     src/ui/        DOM: nessuna logica, solo come si mostra
     web/           manifest, service worker, icone
     test/          node --test

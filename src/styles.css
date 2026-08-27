@@ -203,6 +203,41 @@ body {
 }
 .avviso b { font-weight: 640; }
 
+/* --- il risparmio del mese ---------------------------------------------- */
+
+/* Vive su carta bianca, non dentro il blocco colorato: la testata risponde a
+   "quanto posso spendere oggi", questa a "come sta andando il mese". Due
+   domande diverse meritano due superfici diverse, o si legge una sola cosa. */
+.risparmio { padding-bottom: 16px; }
+.risparmio .totale { color: var(--testo); font-weight: 640; }
+
+/* La barra qui non e' quella della testata: li' e' bianca su colore, qui deve
+   tingersi da sola per dire lo stato senza aggiungere una parola. */
+.risparmio .barra {
+  background: var(--bordo);
+  margin: 4px 18px 10px;
+}
+.risparmio .barra span { background: var(--testo-fioco); }
+.risparmio.sereno .barra span  { background: var(--ok); }
+.risparmio.attento .barra span { background: var(--accento); }
+/* Sotto zero la barra e' vuota per definizione: a dirlo resta il colore del
+   fondo, che e' l'unica cosa rimasta da colorare. */
+.risparmio.oltre .barra { background: color-mix(in srgb, var(--allarme) 30%, var(--bordo)); }
+.risparmio.oltre .totale.obiettivo { color: var(--allarme); }
+.risparmio .totale.saldo.rosso { color: var(--allarme); }
+
+.risparmio .nota {
+  padding: 0 18px;
+  font-size: 12.5px; line-height: 1.45;
+  color: var(--testo-tenue);
+}
+.risparmio .nota.fioco { color: var(--testo-fioco); margin-top: 4px; }
+.risparmio .nota + .giorno { padding-top: 10px; }
+
+/* Saldo e risparmio stanno sulla stessa carta ma rispondono a due domande: una
+   riga sottile basta a non farli leggere come un unico blocco. */
+.divisorio { height: 1px; background: var(--bordo); margin: 14px 18px 4px; }
+
 /* --- righe di dati ------------------------------------------------------ */
 
 .righe { display: flex; }
@@ -315,6 +350,16 @@ body {
 .campo input.sbagliato { border-color: var(--allarme); color: var(--allarme); }
 .campo label.fioco { color: var(--testo-tenue); }
 .campo .togli.piu { font-size: 20px; color: var(--accento); }
+.campo label .fioco { color: var(--testo-fioco); font-size: 13px; }
+
+/* Mese per mese: due colonne, il nome a sinistra e quanto e' rimasto a destra.
+   Il rosso e' l'unica tinta, e vuol dire una cosa sola - quel mese ha mangiato
+   piu' di quello che entrava. */
+.riga-mese .esito-mese { font-size: 15px; font-weight: 600; color: var(--ok); }
+.riga-mese .esito-mese.rosso { color: var(--allarme); }
+.riga-mese .esito-mese.incerto { color: var(--testo-fioco); font-weight: 500; }
+.totale-mesi { background: var(--carta-alt); }
+.totale-mesi label { font-weight: 600; }
 .campo .versione {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 13px; color: var(--testo-fioco); letter-spacing: .02em;
