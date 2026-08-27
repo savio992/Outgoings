@@ -94,6 +94,10 @@ function riepilogoBanca(banca, esito, stipendio) {
           : null,
       ]));
   }
+  if (banca.saldo) {
+    pezzi.push(riga('Sul conto ', el('b', { testo: euro(banca.saldo.disponibile) }),
+      ` al ${dataBreve(banca.saldo.al)}, come lo scrive la banca.`));
+  }
   if (esito.rimosse.length) {
     pezzi.push(el('div', { class: 'minuta' }, [
       `${esito.rimosse.length} letture dagli screenshot in quel periodo sono state sostituite: `,
@@ -181,7 +185,24 @@ export function apriIncolla({ registro, config, salvaRegistro, salvaConfig }) {
       // hai messo tu con la deduzione di un'euristica e' un danno, non un aiuto.
       const trovato = stipendioDaMovimenti(banca.movimenti);
       const stipendio = trovato && { ...trovato, gia: Number(config.stipendio) > 0 };
-      if (trovato && !stipendio.gia) salvaConfig({ ...config, stipendio: trovato.importo });
+
+      // Il saldo invece si sovrascrive volentieri: e' un fatto scritto dalla
+      // banca, non una deduzione. L'unica condizione e' che sia piu' recente di
+      // quello che c'e' gia' - reimportare un estratto conto vecchio non deve
+      // far tornare indietro il saldo di oggi.
+      const piuRecente = banca.saldo && banca.saldo.al >= (config.saldo?.al ?? '');
+
+      // Una sola scrittura: due `salvaConfig` di fila partirebbero entrambe
+      // dallo stesso `config`, e la seconda cancellerebbe la prima.
+      const patch = {
+        ...(trovato && !stipendio.gia ? { stipendio: trovato.importo } : {}),
+        ...(piuRecente ? { saldo: {
+          importo: banca.saldo.disponibile,
+          contabile: banca.saldo.contabile,
+          al: banca.saldo.al,
+        } } : {}),
+      };
+      if (Object.keys(patch).length) salvaConfig({ ...config, ...patch });
       salvaRegistro(risultato.registro);
       esito.replaceChildren(el('div', { class: 'carta' }, [riepilogoBanca(banca, risultato, stipendio)]));
       return true;

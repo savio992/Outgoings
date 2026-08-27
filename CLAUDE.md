@@ -41,6 +41,14 @@ periodo che copre vince lui e riscrive, perche' chiama gli esercenti in un altro
 modo e abbinarli a naso vorrebbe dire sbagliare in silenzio. Gli screenshot
 servono per le spese di oggi, che la banca contabilizzera' fra giorni.
 
+**Il saldo e' un fatto con una data, la stima e' un conto nostro.** Il saldo lo
+scrive la banca in cima all'estratto conto ed e' vero il giorno in cui l'ha
+scritto. Le spese arrivate dopo il registro le ha - sono quelle delle notifiche,
+che la banca contabilizzera' fra giorni - e sottrarle e' l'unica cosa che questa
+app puo' fare e quella della banca no. Ma i due numeri restano separati e
+etichettati: spacciare per saldo una cifra che nessuna banca ha mai scritto
+sarebbe il modo piu' rapido di rendere inutile l'unico dato certo.
+
 **Il risparmio si toglie prima, non dopo.** Quanto si vuole mettere da parte
 esce dal disponibile insieme alle uscite fisse, e solo cio' che avanza diventa
 il tetto giornaliero. Trattarlo come l'avanzo di fine mese vuol dire non

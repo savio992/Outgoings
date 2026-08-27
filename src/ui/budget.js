@@ -6,8 +6,8 @@
 // Avvisare il resto dell'app a ogni tasto ridisegnerebbe la vista, e con essa
 // l'input che si sta usando - che perderebbe il fuoco a meta' parola.
 
-import { el, euro, oggiIso, leggiNumero, nomeMese } from './comune.js';
-import { statoGiorno, giorniDelMese, risparmioDeiMesi, dopoLeFisse } from '../domain/budget.js';
+import { el, euro, oggiIso, leggiNumero, nomeMese, dataBreve } from './comune.js';
+import { statoGiorno, giorniDelMese, risparmioDeiMesi, dopoLeFisse, saldoStimato } from '../domain/budget.js';
 import { actualBudget } from '../domain/export.js';
 import { daJsonl, merge, aJsonl, aBackup, daBackup } from '../domain/registro.js';
 import { VERSIONE } from '../versione.js';
@@ -181,6 +181,45 @@ export function vistaBudget(registroIniziale, configIniziale, setConfig, setRegi
     ]);
   }
 
+  /**
+   * Il saldo del conto: lo scrive la banca, si corregge a mano.
+   *
+   * Il campo esiste perche' fra un estratto conto e l'altro passa un mese, e in
+   * mezzo l'unica cosa che puo' rimettere a posto il numero sei tu. La data si
+   * sposta a oggi quando lo tocchi: un saldo scritto adesso e' vero adesso, e
+   * tenere la data vecchia farebbe risottrarre spese gia' contate.
+   */
+  function saldoConto() {
+    const s = saldoStimato(config, registro, oggiIso());
+
+    return el('div', { class: 'sezione' }, [
+      el('div', { class: 'titolo-sezione', testo: 'Sul conto' }),
+      el('div', { class: 'carta' }, [
+        el('div', { class: 'campo' }, [
+          el('label', { testo: 'Saldo' }),
+          campoEuro(config.saldo?.importo, (v) => scrivendo({
+            saldo: { ...config.saldo, importo: v, al: oggiIso() },
+          })),
+        ]),
+        s
+          ? el('div', { class: 'esito' }, [
+            `Al ${dataBreve(s.al)}. `,
+            s.movimentiDopo
+              ? [`Da allora il registro ha ${s.movimentiDopo} `,
+                `${s.movimentiDopo === 1 ? 'movimento' : 'movimenti'} che la banca non aveva ancora `,
+                'contabilizzato, quindi adesso dovresti averne circa '].join('')
+              : 'Nessun movimento dopo quella data, quindi dovrebbero essere ancora ',
+            el('b', { class: 'soldi', testo: euro(s.stimato) }),
+            '.',
+          ])
+          : el('div', { class: 'esito' }, [
+            'Lo prende da solo dal file della banca — c’e’ scritto in cima all’estratto '
+            + 'conto. Puoi anche scriverlo qui.',
+          ]),
+      ]),
+    ]);
+  }
+
   disegnaConto();
 
   return el('div', {}, [
@@ -222,6 +261,8 @@ export function vistaBudget(registroIniziale, configIniziale, setConfig, setRegi
       ]),
     ]),
 
+    saldoConto(),
+
     el('div', { class: 'sezione' }, [
       el('div', { class: 'titolo-sezione', testo: 'Risparmio' }),
       el('div', { class: 'carta' }, [
@@ -238,7 +279,7 @@ export function vistaBudget(registroIniziale, configIniziale, setConfig, setRegi
     ]),
 
     el('div', { class: 'sezione' }, [
-      el('div', { class: 'titolo-sezione', testo: 'Il conto' }),
+      el('div', { class: 'titolo-sezione', testo: 'Il tetto' }),
       conto,
     ]),
 

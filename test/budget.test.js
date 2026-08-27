@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { statoGiorno, giorniDelMese, disponibileDelMese, totaleUsciteFisse, mediaGiornaliera, ultimiGiorni, risparmioDeiMesi } from '../src/domain/budget.js';
+import { statoGiorno, giorniDelMese, disponibileDelMese, totaleUsciteFisse, mediaGiornaliera, ultimiGiorni, risparmioDeiMesi, saldoStimato } from '../src/domain/budget.js';
 
 const CONFIG = {
   stipendio: 2000,
@@ -223,4 +223,58 @@ test('mese per mese: i mesi futuri non esistono ancora', () => {
 
 test('senza registro non c' + "'" + 'e' + "'" + ' niente da raccontare', () => {
   assert.deepEqual(risparmioDeiMesi(CON_RISPARMIO, [], '2026-08-31'), { mesi: [], totale: 0 });
+});
+
+// --- il saldo -------------------------------------------------------------
+
+const CON_SALDO = { ...CONFIG, saldo: { importo: 2629.23, al: '2026-08-27' } };
+const entrata = (giorno, amount) => ({ ...spesa(giorno, amount), entrata: true });
+
+test('senza un saldo salvato non si stima niente', () => {
+  assert.equal(saldoStimato(CONFIG, [], '2026-08-30'), null);
+  assert.equal(saldoStimato({ saldo: { importo: 100 } }, [], '2026-08-30'), null, 'un saldo senza data non vale');
+});
+
+test('senza movimenti dopo quella data il saldo e' + "'" + ' ancora quello', () => {
+  const s = saldoStimato(CON_SALDO, [spesa('2026-08-20', 50)], '2026-08-28');
+  assert.equal(s.stimato, 2629.23);
+  assert.equal(s.movimentiDopo, 0);
+  assert.equal(s.giorni, 1);
+});
+
+test('le spese viste dopo il saldo lo abbassano, gli accrediti lo alzano', () => {
+  const registro = [
+    spesa('2026-08-20', 50),   // gia' dentro il saldo della banca
+    spesa('2026-08-28', 30),
+    spesa('2026-08-29', 12.5),
+    entrata('2026-08-29', 100),
+  ];
+  const s = saldoStimato(CON_SALDO, registro, '2026-08-30');
+  assert.equal(s.movimentiDopo, 3);
+  assert.equal(s.stimato, 2686.73);
+  assert.equal(s.dichiarato, 2629.23, 'il dato della banca resta separato dalla stima');
+});
+
+test('anche le uscite fisse escono dal conto', () => {
+  // Al tetto giornaliero il mutuo non interessa; al saldo si', ed e' l'unico
+  // posto dell'app in cui la distinzione non si applica.
+  const mutuo = { ...spesa('2026-08-28', 630), fissa: true };
+  assert.equal(saldoStimato(CON_SALDO, [mutuo], '2026-08-29').stimato, 1999.23);
+});
+
+test('del giorno del saldo contano solo le spese che la banca non aveva', () => {
+  const registro = [
+    // dall'estratto conto: e' gia' dentro il saldo che l'estratto conto dichiara
+    { ...spesa('2026-08-27', 63.03), source: 'banca' },
+    // vista dalla notifica, dopo aver scaricato il file
+    { ...spesa('2026-08-27', 3.5), source: 'notifica' },
+  ];
+  const s = saldoStimato(CON_SALDO, registro, '2026-08-27');
+  assert.equal(s.movimentiDopo, 1);
+  assert.equal(s.stimato, 2625.73);
+});
+
+test('un saldo negativo resta negativo', () => {
+  const rosso = { ...CONFIG, saldo: { importo: -120.4, al: '2026-08-27' } };
+  assert.equal(saldoStimato(rosso, [], '2026-08-27').stimato, -120.4);
 });

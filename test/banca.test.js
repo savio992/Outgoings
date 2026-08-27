@@ -401,3 +401,37 @@ test('lo stipendio ha un nome, non un TRN', () => {
   assert.equal(trovato.nome, 'ACME SPA');
   assert.equal(trovato.mesi, 2, 'due mesi con lo stesso nome, non due nomi diversi');
 });
+
+test('il saldo si legge dal preambolo, con la sua data', () => {
+  // E' l'unico dato dell'estratto conto che il registro, fatto di soli
+  // movimenti, non potrebbe ricavare da solo.
+  const righe = [
+    'Intestato a: MARIO ROSSI\t\t\t\t',
+    'Saldo al: 27/08/2026\t\t\t\t',
+    'Saldo contabile: +2.648,22 Euro\t\t\t\t',
+    'Saldo disponibile: +2.629,23 Euro\t\t\t\t',
+    'Data Contabile\tData Valuta\tAddebiti (euro)\tAccrediti (euro)\tDescrizione operazioni',
+    '10/08/2026\t10/08/2026\t20,00\t \tBONIFICO SEPA ISTANTANEO TRN CCTX00000000000000 BENEF. Mario Bianchi PER regalo',
+  ].join('\n');
+  const { saldo } = parseEstrattoConto(righe);
+  assert.deepEqual(saldo, { contabile: 2648.22, disponibile: 2629.23, al: '2026-08-27' });
+});
+
+test('un saldo senza data non e' + "'" + ' un saldo', () => {
+  const righe = [
+    'Saldo contabile: +2.648,22 Euro\t\t\t\t',
+    'Data Contabile\tData Valuta\tAddebiti (euro)\tAccrediti (euro)\tDescrizione operazioni',
+    '10/08/2026\t10/08/2026\t20,00\t \tBONIFICO SEPA ISTANTANEO TRN CCTX00000000000000 BENEF. Mario Bianchi PER regalo',
+  ].join('\n');
+  assert.equal(parseEstrattoConto(righe).saldo, null);
+});
+
+test('un conto in rosso resta in rosso', () => {
+  const righe = [
+    'Saldo al: 27/08/2026\t\t\t\t',
+    'Saldo disponibile: -120,40 Euro\t\t\t\t',
+    'Data Contabile\tData Valuta\tAddebiti (euro)\tAccrediti (euro)\tDescrizione operazioni',
+    '10/08/2026\t10/08/2026\t20,00\t \tBONIFICO SEPA ISTANTANEO TRN CCTX00000000000000 BENEF. Mario Bianchi PER regalo',
+  ].join('\n');
+  assert.equal(parseEstrattoConto(righe).saldo.disponibile, -120.4);
+});

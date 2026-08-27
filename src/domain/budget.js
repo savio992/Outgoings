@@ -206,3 +206,50 @@ export function risparmioDeiMesi(config, registro, oggi) {
     totale: centesimi(mesi.filter((m) => m.contabile).reduce((s, m) => s + m.messoDaParte, 0)),
   };
 }
+
+/**
+ * Quanti soldi ci sono adesso, per quel che se ne puo' sapere.
+ *
+ * Il saldo lo dice la banca, e lo dice a una data: e' vero quel giorno e
+ * comincia a invecchiare il giorno dopo. Ma le spese fatte da allora il registro
+ * le ha - sono quelle lette dalle notifiche, che la banca contabilizzera' fra
+ * giorni - e sottrarle e' l'unica cosa che questa app puo' fare e l'app della
+ * banca no.
+ *
+ * `dichiarato` resta separato da `stimato` apposta: il primo e' un fatto, il
+ * secondo un conto fatto da noi, e confonderli vorrebbe dire spacciare per
+ * saldo un numero che nessuna banca ha mai scritto.
+ *
+ * Si contano *tutte* le uscite dopo quella data, fisse comprese: dal conto esce
+ * anche il mutuo, che al tetto giornaliero non interessa ma al saldo si'.
+ */
+export function saldoStimato(config, registro, oggi) {
+  const salvato = config?.saldo;
+  const importo = Number(salvato?.importo);
+  if (!salvato?.al || !Number.isFinite(importo)) return null;
+
+  // Il giorno stesso del saldo e' il caso ambiguo: la banca ha fotografato il
+  // conto a un'ora che non sappiamo. Quello che l'estratto conto contiene e'
+  // dentro il saldo per definizione; quello che invece ha visto solo l'app -
+  // una notifica, domani l'ANCS - e' arrivato dopo, perche' l'estratto conto lo
+  // scarichi e poi vivi la giornata. Contare quest'ultimo e non il primo e' la
+  // sola lettura che non sbaglia in nessuna delle due direzioni.
+  const dopo = (registro ?? []).filter((t) => {
+    const g = giornoDi(t);
+    return g > salvato.al || (g === salvato.al && t.source !== 'banca');
+  });
+  const uscite = dopo.filter((t) => !t.entrata).reduce((s, t) => s + t.amount, 0);
+  const entrate = dopo.filter((t) => t.entrata).reduce((s, t) => s + t.amount, 0);
+
+  return {
+    dichiarato: centesimi(importo),
+    al: salvato.al,
+    stimato: centesimi(importo - uscite + entrate),
+    movimentiDopo: dopo.length,
+    // Quanto e' vecchio il dato. Un saldo di tre settimane fa non e' sbagliato,
+    // e' scaduto: va detto invece di lasciarlo passare per il saldo di adesso.
+    giorni: Math.max(0, Math.round(
+      (Date.parse(`${oggi}T12:00:00Z`) - Date.parse(`${salvato.al}T12:00:00Z`)) / 86400000,
+    )),
+  };
+}

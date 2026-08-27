@@ -25,6 +25,18 @@ const POS_STRETTO = /^PAGAMENTO\s+POS\s+(.+?)\s+(\d{2})\/(\d{2})\/(\d{4})\s+(\d{
 
 const RE_DATA = /^(\d{2})\/(\d{2})\/(\d{4})$/;
 
+// Il preambolo dell'estratto conto, quello sopra l'intestazione delle colonne.
+// Dentro c'e' l'unica cosa che il registro da solo non puo' sapere: quanti soldi
+// ci sono davvero sul conto, e a che data.
+const SALDO_AL = /saldo\s+al\s*:?\s*(\d{2}\/\d{2}\/\d{4})/i;
+const SALDO_CONTABILE = /saldo\s+contabile\s*:?\s*([+-]?[\d.,]+)/i;
+const SALDO_DISPONIBILE = /saldo\s+disponibile\s*:?\s*([+-]?[\d.,]+)/i;
+
+/** "+2.648,22" -> 2648.22, segno compreso: un conto puo' andare in rosso. */
+function cifraConSegno(testo) {
+  return parseCifra(String(testo ?? '').replace(/^\+/, ''));
+}
+
 // I gateway di pagamento mettono il proprio nome davanti a quello
 // dell'esercente: "SumUp  *Gocce di caffe" e' il bar sotto casa, non SumUp.
 // Senza toglierlo lo stesso posto compare con due nomi a seconda del terminale,
@@ -320,6 +332,7 @@ export function parseEstrattoContoDaGriglia(griglia, opzioni = {}) {
   let col = null;
   const movimenti = [];
   let saltate = 0;
+  const saldo = { contabile: null, disponibile: null, al: null };
 
   // Cosa ha visto il lettore, per quando non riconosce niente. Un "non
   // funziona" senza sapere cosa c'era dentro il file costa un giro di
@@ -341,7 +354,18 @@ export function parseEstrattoContoDaGriglia(griglia, opzioni = {}) {
 
     if (!col) {
       // Prima dell'intestazione c'e' il preambolo: intestatario, saldi, date.
-      // Non e' spazzatura da ignorare in blocco, e' semplicemente un'altra cosa.
+      // Non e' spazzatura da ignorare in blocco, e' semplicemente un'altra cosa
+      // - e i saldi che ci stanno dentro sono l'unico dato che il registro,
+      // fatto di soli movimenti, non potrebbe mai ricavare da solo.
+      for (const cella of celle) {
+        const al = cella.match(SALDO_AL);
+        if (al) saldo.al = giornoDaData(al[1]);
+        const contabile = cella.match(SALDO_CONTABILE);
+        if (contabile) saldo.contabile = cifraConSegno(contabile[1]);
+        const disponibile = cella.match(SALDO_DISPONIBILE);
+        if (disponibile) saldo.disponibile = cifraConSegno(disponibile[1]);
+      }
+
       if (eIntestazione(celle)) {
         const forse = indiceColonne(celle);
         if (intestazioneUtile(forse)) {
@@ -427,6 +451,9 @@ export function parseEstrattoContoDaGriglia(griglia, opzioni = {}) {
     // Il periodo coperto serve a chi importa: e' l'intervallo che l'estratto
     // conto ha il diritto di riscrivere.
     periodo: giorni.length ? { da: giorni[0], a: giorni[giorni.length - 1] } : null,
+    // Senza data il saldo non vale niente: un numero di soldi senza il giorno a
+    // cui si riferisce non si puo' ne' aggiornare ne' smentire.
+    saldo: saldo.al && saldo.disponibile !== null ? saldo : null,
     saltate,
   };
 }
