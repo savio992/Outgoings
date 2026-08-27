@@ -88,9 +88,13 @@ export function vistaBudget(registroIniziale, configIniziale, setConfig, setRegi
   // ridisegno serve, e nessun campo e' sotto le dita.
   const struttura = (patch) => setConfig({ ...config, ...patch });
 
-  const uscite = config.usciteFisse ?? [];
+  // Sempre lo stato di adesso, mai una copia presa all'inizio: catturandola
+  // una volta sola, scrivere il nome e poi l'importo applicava il secondo alla
+  // versione senza il primo, e il nome spariva. Lo stesso valeva per il tasto
+  // che toglie una riga, che riscriveva lo stato di prima.
+  const uscite = () => config.usciteFisse ?? [];
   const cambiaUscita = (i, patch) => scrivendo({
-    usciteFisse: uscite.map((u, k) => (k === i ? { ...u, ...patch } : u)),
+    usciteFisse: uscite().map((u, k) => (k === i ? { ...u, ...patch } : u)),
   });
 
   const importa = el('input', {
@@ -132,7 +136,7 @@ export function vistaBudget(registroIniziale, configIniziale, setConfig, setRegi
     el('div', { class: 'sezione' }, [
       el('div', { class: 'titolo-sezione', testo: 'Uscite fisse' }),
       el('div', { class: 'carta' }, [
-        ...uscite.map((u, i) => el('div', { class: 'campo' }, [
+        ...uscite().map((u, i) => el('div', { class: 'campo' }, [
           el('input', {
             class: 'nome', type: 'text', value: u.nome ?? '',
             placeholder: 'Affitto, rata, abbonamento…',
@@ -141,17 +145,17 @@ export function vistaBudget(registroIniziale, configIniziale, setConfig, setRegi
           campoEuro(u.importo, (v) => cambiaUscita(i, { importo: v })),
           el('button', {
             class: 'togli', type: 'button', testo: '×', 'aria-label': 'Togli',
-            onclick: () => struttura({ usciteFisse: uscite.filter((_, k) => k !== i) }),
+            onclick: () => struttura({ usciteFisse: uscite().filter((_, k) => k !== i) }),
           }),
         ])),
         el('div', { class: 'campo' }, [
           el('button', {
             class: 'togli piu', type: 'button', testo: '+',
-            onclick: () => struttura({ usciteFisse: [...uscite, { nome: '', importo: 0 }] }),
+            onclick: () => struttura({ usciteFisse: [...uscite(), { nome: '', importo: 0 }] }),
           }),
           el('label', {
             class: 'fioco',
-            testo: uscite.length ? 'Aggiungi un’altra uscita' : 'Aggiungi la prima uscita fissa',
+            testo: uscite().length ? 'Aggiungi un’altra uscita' : 'Aggiungi la prima uscita fissa',
           }),
         ]),
       ]),

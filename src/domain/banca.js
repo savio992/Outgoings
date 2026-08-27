@@ -289,7 +289,12 @@ export function parseEstrattoContoDaGriglia(griglia, opzioni = {}) {
   // Cosa ha visto il lettore, per quando non riconosce niente. Un "non
   // funziona" senza sapere cosa c'era dentro il file costa un giro di
   // domande; queste tre righe lo risparmiano.
-  const diagnostica = { righe: 0, intestazione: null, colonne: null, primeRighe: [] };
+  const diagnostica = {
+    righe: 0, intestazione: null, colonne: null, primeRighe: [],
+    // Le righe scartate valgono piu' di quelle lette bene: sono le uniche che
+    // possono spiegare perche' di cento movimenti ne siano entrati otto.
+    esempiSaltate: [],
+  };
 
   for (const grezza of griglia ?? []) {
     const celle = (grezza ?? []).map((c) => String(c ?? '').trim());
@@ -297,6 +302,7 @@ export function parseEstrattoContoDaGriglia(griglia, opzioni = {}) {
 
     diagnostica.righe++;
     if (diagnostica.primeRighe.length < 8) diagnostica.primeRighe.push(celle);
+    if (col && celle.length !== diagnostica.celleIntestazione) diagnostica.righeCorte = (diagnostica.righeCorte ?? 0) + 1;
 
     if (!col) {
       // Prima dell'intestazione c'e' il preambolo: intestatario, saldi, date.
@@ -307,6 +313,7 @@ export function parseEstrattoContoDaGriglia(griglia, opzioni = {}) {
           col = forse;
           diagnostica.intestazione = celle;
           diagnostica.colonne = forse;
+          diagnostica.celleIntestazione = celle.length;
         }
       }
       continue;
@@ -317,8 +324,14 @@ export function parseEstrattoContoDaGriglia(griglia, opzioni = {}) {
     const accredito = col.accrediti >= 0 ? parseCifra(celle[col.accrediti]) : null;
     const amount = addebito ?? accredito;
     if (!amount || amount <= 0 || !descrizione) {
-      if (descrizione || celle.some(Boolean)) saltate++;
+      if (descrizione || celle.some(Boolean)) {
+        saltate++;
+        if (diagnostica.esempiSaltate.length < 5) diagnostica.esempiSaltate.push(celle);
+      }
       continue;
+      // Una riga con meno celle dell'intestazione vuol dire che gli indici non
+      // valgono piu': e' la spiegazione piu' probabile di un import che perde
+      // le righe in silenzio, e si vede solo contandole.
     }
 
     const entrata = addebito === null;
@@ -331,7 +344,11 @@ export function parseEstrattoContoDaGriglia(griglia, opzioni = {}) {
     const giorno = pos?.giorno
       ?? giornoDaData(celle[col.valuta])
       ?? giornoDaData(celle[col.contabile]);
-    if (!giorno) { saltate++; continue; }
+    if (!giorno) {
+      saltate++;
+      if (diagnostica.esempiSaltate.length < 5) diagnostica.esempiSaltate.push(celle);
+      continue;
+    }
 
     const fuoriPos = pos ? null : leggiNonPos(descrizione);
     const movimento = {
