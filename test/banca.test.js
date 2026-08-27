@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { parseEstrattoConto, leggiPos, stipendioDaMovimenti } from '../src/domain/banca.js';
-import { sostituisciPeriodo, merge, totaleDelGiorno, eSpesaVariabile } from '../src/domain/registro.js';
-import { parseAppList } from '../src/domain/parser.js';
+import { sostituisciPeriodo, merge, totaleDelGiorno, eSpesaVariabile, periodoBanca } from '../src/domain/registro.js';
+import { parseAppList, parseNotifications } from '../src/domain/parser.js';
 import { statoGiorno } from '../src/domain/budget.js';
 
 // L'estratto conto vero, con il preambolo che la banca ci mette davanti.
@@ -434,4 +434,90 @@ test('un conto in rosso resta in rosso', () => {
     '10/08/2026\t10/08/2026\t20,00\t \tBONIFICO SEPA ISTANTANEO TRN CCTX00000000000000 BENEF. Mario Bianchi PER regalo',
   ].join('\n');
   assert.equal(parseEstrattoConto(righe).saldo.disponibile, -120.4);
+});
+
+// --- le due sorgenti nello stesso periodo ---------------------------------
+
+const ESTRATTO_TRE = [
+  'Data Contabile\tData Valuta\tAddebiti (euro)\tAccrediti (euro)\tDescrizione operazioni',
+  '27/08/2026\t25/08/2026\t63,03\t \tPAGAMENTO POS FAMILA MEGAGEST        25/08/2026 18.51 BARI          Op.667232 carta ****2787',
+  '27/08/2026\t25/08/2026\t3,50\t \tPAGAMENTO POS SumUp  *Gocce di caffe  25/08/2026 08.32 Bari palese   Op.665799 carta ****2787',
+  '26/08/2026\t24/08/2026\t19,00\t \tPAGAMENTO POS CRUCOTTO SNC           24/08/2026 20.03 BARI          Op.666974 carta ****2787',
+].join('\n');
+
+// Le stesse tre spese viste dal Centro Notifiche, piu' tre di oggi che la banca
+// non ha ancora contabilizzato.
+const SEI_NOTIFICHE = [
+  'Poste Italiane                    mar 18:51',
+  "Famila Bistro'. Bari, Puglia",
+  '63,03 €',
+  'Poste Italiane                    mar 08:32',
+  'Gocce Di Caffe. Bari, Puglia',
+  '3,50 €',
+  'Poste Italiane                    lun 20:03',
+  'Crucotto Snc. Bari, Puglia',
+  '19,00 €',
+  'Poste Italiane                    17:12',
+  'Panificio Santa Rita. Bari, Puglia',
+  '12,40 €',
+  'Poste Italiane                    15:03',
+  'Gocce Di Caffe. Bari, Puglia',
+  '8,00 €',
+  'Poste Italiane                    12:20',
+  'Famila Megagest. Bari, Puglia',
+  '41,20 €',
+].join('\n');
+
+const GIOVEDI = new Date('2026-08-27T21:00:00+02:00');
+const somma = (registro) => Number(registro.reduce((s, t) => s + t.amount, 0).toFixed(2));
+
+test('il numero d' + "'" + ' operazione non fa collidere le due sorgenti, e non puo' + "'" + ' farlo', () => {
+  // La banca ha "Op.667232" e la notifica no, quindi i due id sono per forza
+  // diversi. Nemmeno confrontare i campi salverebbe: lo stesso posto e'
+  // "FAMILA MEGAGEST" per la banca e "Famila Bistro'" nella notifica.
+  const banca = parseEstrattoConto(ESTRATTO_TRE).movimenti;
+  const notifiche = parseNotifications(SEI_NOTIFICHE, GIOVEDI);
+  const stessaSpesa = notifiche.find((t) => t.amount === 63.03);
+  assert.notEqual(banca.find((t) => t.amount === 63.03).id, stessaSpesa.id);
+});
+
+test('lo screenshot dopo l' + "'" + ' estratto conto non raddoppia le spese che la banca ha gia' + "'", () => {
+  const banca = parseEstrattoConto(ESTRATTO_TRE);
+  const conBanca = sostituisciPeriodo([], banca.movimenti, banca.periodo.da, banca.periodo.a).registro;
+
+  const esito = merge(conBanca, parseNotifications(SEI_NOTIFICHE, GIOVEDI));
+  assert.equal(esito.aggiunte.length, 3, 'solo le tre di oggi');
+  assert.equal(esito.coperte.length, 3, 'le altre tre le ha gia’ la banca');
+  assert.equal(esito.duplicate.length, 0, 'non sono duplicati: sono lo stesso fatto letto meglio');
+  assert.equal(somma(esito.registro), 147.13);
+});
+
+test('lo stesso registro, nell' + "'" + ' ordine opposto', () => {
+  // Prima lo screenshot e poi l'estratto conto funzionava gia': ci pensa
+  // `sostituisciPeriodo`. Il totale deve essere identico, o l'ordine in cui
+  // carichi i file cambierebbe i tuoi soldi.
+  const banca = parseEstrattoConto(ESTRATTO_TRE);
+  const conNotifiche = merge([], parseNotifications(SEI_NOTIFICHE, GIOVEDI)).registro;
+  const esito = sostituisciPeriodo(conNotifiche, banca.movimenti, banca.periodo.da, banca.periodo.a);
+  assert.equal(somma(esito.registro), 147.13);
+});
+
+test('fuori dal periodo coperto lo screenshot entra come sempre', () => {
+  const banca = parseEstrattoConto(ESTRATTO_TRE);
+  const conBanca = sostituisciPeriodo([], banca.movimenti, banca.periodo.da, banca.periodo.a).registro;
+  assert.deepEqual(periodoBanca(conBanca), { da: '2026-08-24', a: '2026-08-25' });
+
+  // Il 27 e' fuori: la banca non l'ha ancora visto.
+  const oggi = parseNotifications([
+    'Poste Italiane                    17:12',
+    'Panificio Santa Rita. Bari, Puglia',
+    '12,40 €',
+  ].join('\n'), GIOVEDI);
+  assert.equal(merge(conBanca, oggi).aggiunte.length, 1);
+});
+
+test('senza estratto conto nel registro non si copre niente', () => {
+  const esito = merge([], parseNotifications(SEI_NOTIFICHE, GIOVEDI));
+  assert.equal(esito.aggiunte.length, 6);
+  assert.equal(esito.coperte.length, 0);
 });

@@ -32,7 +32,7 @@ function riga(...pezzi) {
 }
 
 function riepilogoScreenshot(esito, tipo) {
-  const { aggiunte, duplicate } = esito;
+  const { aggiunte, duplicate, coperte } = esito;
   const incerte = aggiunte.filter((t) => t.confidence === 'low').length;
   const totale = aggiunte.reduce((s, t) => s + t.amount, 0);
 
@@ -43,6 +43,13 @@ function riepilogoScreenshot(esito, tipo) {
     : riga('Nessuna spesa nuova.'));
   if (duplicate.length) {
     pezzi.push(riga(`${duplicate.length} ${duplicate.length === 1 ? 'era gia’ nel registro' : 'erano gia’ nel registro'}.`));
+  }
+  // Sparire in silenzio sarebbe peggio del duplicato: chi guarda conta le card
+  // sullo screenshot, e se il numero non torna deve poter capire perche'.
+  if (coperte?.length) {
+    pezzi.push(riga(`${coperte.length} `,
+      coperte.length === 1 ? 'cade' : 'cadono',
+      ' nei giorni che l’estratto conto copre: quelle le ha gia’ la banca, e le sue sono piu’ precise.'));
   }
   if (incerte) {
     pezzi.push(el('div', { class: 'nota' }, [
@@ -209,7 +216,7 @@ export function apriIncolla({ registro, config, salvaRegistro, salvaConfig }) {
     }
 
     const risultato = merge(registro, letto.lette);
-    if (!risultato.aggiunte.length && !risultato.duplicate.length) {
+    if (!risultato.aggiunte.length && !risultato.duplicate.length && !risultato.coperte.length) {
       messaggio('Non ho riconosciuto niente. Controlla di aver copiato la lista dei movimenti, ',
         'il Centro Notifiche o le righe dell’estratto conto — oppure scegli il file .xlsx della banca.');
       return false;

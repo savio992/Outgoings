@@ -75,13 +75,41 @@ function perData(a, b) {
 }
 
 /**
+ * L'intervallo che l'estratto conto ha gia' riscritto, se ce n'e' uno.
+ *
+ * Si ricava dal registro invece di essere salvato a parte: cosi' resta vero
+ * anche dopo una cancellazione o un ripristino da backup, e non c'e' un secondo
+ * stato da tenere allineato al primo.
+ */
+export function periodoBanca(registro) {
+  const giorni = (registro ?? []).filter((t) => t.source === 'banca').map(giornoDi).sort();
+  return giorni.length ? { da: giorni[0], a: giorni[giorni.length - 1] } : null;
+}
+
+/**
  * L'unica porta d'ingresso del registro.
  *
  * Idempotente per costruzione: rifare lo screenshot senza aver svuotato il
  * Centro Notifiche rivede le stesse transazioni, e devono finire in `duplicate`
  * senza toccare il registro. Non modifica gli argomenti.
+ *
+ * L'id da solo non basta a riconoscere la stessa spesa vista da due sorgenti
+ * diverse, e non e' un difetto sistemabile con un hash migliore: l'estratto
+ * conto porta il numero d'operazione, che vale come identita' ed e' piu' forte
+ * di qualsiasi chiave dedotta dai campi, mentre una notifica quel numero non ce
+ * l'ha e non potra' mai averlo. E nemmeno confrontare i campi funzionerebbe: la
+ * banca chiama "FAMILA MEGAGEST" il posto che nella notifica e' "Famila
+ * Bistro'", ed e' esattamente il motivo per cui dentro il suo periodo
+ * l'estratto conto riscrive invece di abbinare.
+ *
+ * Quindi la stessa regola vale anche in senso inverso: una lettura che cade
+ * dentro il periodo gia' coperto dall'estratto conto e' roba che la banca ha
+ * gia', e non entra. Sbagliare da questa parte si ripara da solo - se davvero
+ * era una spesa che la banca non aveva ancora contabilizzato, il prossimo
+ * estratto conto la porta dentro, perche' quel periodo lo riscrive lui.
  */
 export function merge(registro, nuove) {
+  const coperto = periodoBanca(registro);
   const visti = new Set();
   for (const t of registro ?? []) {
     // Un id mancante non deve entrare nell'insieme: `has(undefined)` sarebbe
@@ -96,9 +124,15 @@ export function merge(registro, nuove) {
   }
   const aggiunte = [];
   const duplicate = [];
+  const coperte = [];
   for (const t of nuove ?? []) {
     if (t.id && visti.has(t.id)) {
       duplicate.push(t);
+      continue;
+    }
+    if (coperto && t.source !== 'banca'
+      && giornoDi(t) >= coperto.da && giornoDi(t) <= coperto.a) {
+      coperte.push(t);
       continue;
     }
     visti.add(t.id);
@@ -108,6 +142,11 @@ export function merge(registro, nuove) {
     registro: [...(registro ?? []), ...aggiunte].sort(perData),
     aggiunte,
     duplicate,
+    // Non e' un duplicato: e' una spesa che l'estratto conto conosce meglio.
+    // Contarle insieme direbbe "erano gia' nel registro", che non e' vero e non
+    // spiegherebbe perche' con lo stesso screenshot un'altra volta ne entrano
+    // sei e stavolta tre.
+    coperte,
   };
 }
 

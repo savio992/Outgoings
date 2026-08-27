@@ -41,6 +41,14 @@ periodo che copre vince lui e riscrive, perche' chiama gli esercenti in un altro
 modo e abbinarli a naso vorrebbe dire sbagliare in silenzio. Gli screenshot
 servono per le spese di oggi, che la banca contabilizzera' fra giorni.
 
+**Vince dentro il suo periodo in tutti e due i versi.** Non basta che l'estratto
+conto riscriva cio' che trova: una lettura da screenshot che *cade* nel periodo
+gia' coperto non deve entrare. Sull'id non si puo' contare - la banca ha il
+numero d'operazione e la notifica non l'avra' mai - e nemmeno sui campi, visto
+che lo stesso posto ha due nomi diversi nelle due sorgenti. Scartarla si ripara
+da solo: se era davvero una spesa non ancora contabilizzata, il prossimo
+estratto conto la porta dentro.
+
 **Il saldo e' un fatto con una data, la stima e' un conto nostro.** Il saldo lo
 scrive la banca in cima all'estratto conto ed e' vero il giorno in cui l'ha
 scritto. Le spese arrivate dopo il registro le ha - sono quelle delle notifiche,
