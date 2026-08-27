@@ -177,7 +177,13 @@ function righeDaFoglio(xml, condivise, date) {
   const righe = [];
   for (const riga of xml.matchAll(/<row\b[^>]*>([\s\S]*?)<\/row>|<row\b[^>]*\/>/g)) {
     const celle = [];
-    for (const c of (riga[1] ?? '').matchAll(/<c\b([^>]*)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+    // Gli attributi vanno presi senza ingordigia. Con `[^>]*` la barra di una
+    // cella vuota auto-chiusa - `<c/>`, che e' come Excel scrive le celle senza
+    // contenuto - finiva fra gli attributi, il ramo `/>` non scattava piu' e la
+    // cella si mangiava quella successiva: la descrizione perdeva il proprio
+    // `t="s"` e restava l'indice grezzo nella tabella delle stringhe. Con la
+    // riga accorciata di una cella, tutte le colonne dopo slittavano.
+    for (const c of (riga[1] ?? '').matchAll(/<c\b([^>]*?)\s*(?:\/>|>([\s\S]*?)<\/c>)/g)) {
       const attributi = c[1];
       const corpo = c[2] ?? '';
       const riferimento = attributi.match(/\br="([A-Z]+)\d+"/);

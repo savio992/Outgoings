@@ -131,3 +131,37 @@ test('le righe complete restano leggibili accanto a quelle corte', async () => {
   assert.equal(movimenti[0].amount, 63.03);
   assert.equal(saltate, 1);
 });
+
+test('una cella vuota auto-chiusa non si mangia quella dopo', async () => {
+  // Excel scrive le celle senza contenuto come `<c/>`. Leggendo gli attributi
+  // con ingordigia, la barra finiva fra gli attributi, il ramo di chiusura non
+  // scattava e la cella successiva veniva inghiottita: la descrizione perdeva
+  // il proprio t="s" e restava l'indice grezzo nella tabella delle stringhe.
+  //
+  // Su un estratto conto vero questo faceva entrare 8 movimenti su 115: ogni
+  // riga ha una delle due colonne degli importi vuota, quindi ogni riga si
+  // accorciava di una cella e la descrizione slittava fuori posto.
+  const { righe } = (await leggiXlsx(FILE))[0];
+  const conAddebito = righe.find((r) => r[4] && r[4].startsWith('PAGAMENTO POS'));
+
+  assert.ok(conAddebito, 'la descrizione deve stare nella quinta colonna');
+  assert.equal(conAddebito.length, 5);
+  assert.equal(conAddebito[3], '', 'la colonna degli accrediti resta vuota, non sparisce');
+  assert.ok(Number(conAddebito[2]) > 0, 'l’addebito resta nella sua colonna');
+
+  // E nessuna riga deve contenere un indice di stringa al posto del testo.
+  for (const r of righe.slice(5)) {
+    assert.ok(Number.isNaN(Number(r[4])), `riga con descrizione non risolta: ${JSON.stringify(r)}`);
+  }
+});
+
+test('le celle vuote non fanno slittare le colonne, nemmeno senza riferimento', async () => {
+  const { righe } = (await leggiXlsx(FILE))[0];
+  // Tutte le righe di movimento hanno cinque celle: due date, due colonne di
+  // importi (una vuota) e la descrizione.
+  const movimenti = righe.slice(5);
+  assert.ok(movimenti.length > 90);
+  assert.ok(movimenti.every((r) => r.length === 5), 'ogni riga deve avere cinque celle');
+  // Per ogni riga esattamente una delle due colonne degli importi e' piena.
+  assert.ok(movimenti.every((r) => (r[2] === '') !== (r[3] === '')));
+});
