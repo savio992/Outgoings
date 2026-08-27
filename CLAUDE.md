@@ -78,7 +78,23 @@ si vede e si sistema con un tocco, una spesa vera nascosta fra le fisse no.
 si chiama "Gocce Di Caffe" nelle notifiche e "Gocce di caffe" via SumUp. Per
 riconoscerli non serve sapere quale parola sia il cognome: basta confrontare
 l'insieme delle parole, senza ordine. Fra le grafie viste si sceglie sempre
-allo stesso modo, e mai una inventata.
+allo stesso modo, e mai una inventata. `impronta` e `grafiaMigliore` stanno in
+`registro.js` perche' le usano sia l'estratto conto sia le classifiche: due
+politiche diverse su cosa sia lo stesso nome vorrebbero dire due totali diversi
+per la stessa spesa.
+
+**Le categorie le attacca l'utente, l'app non le indovina.** Un dizionario di
+esercenti sarebbe sbagliato il giorno stesso in cui lo si scrive: "COOP" e' la
+spesa per uno e il bar dell'ufficio per un altro, e una categoria sbagliata non
+si vede, perche' il totale torna lo stesso. Quindi non ce n'e' nessuna
+precaricata: si sceglie a mano, una volta per esercente, e quello che resta
+senza etichetta si chiama "Senza categoria" e sta in fondo, fuori dalla
+classifica. Le proposte sono solo tasti comodi, non assegnazioni.
+
+**Raggruppare non riscrive il registro.** Categorie e unioni di grafie stanno
+nella configurazione e si applicano al momento del conto. Il registro tiene le
+parole esatte della banca: un raggruppamento sbagliato si disfa con un tocco,
+un registro riscritto no.
 
 **Il gateway non e' l'esercente.** "SumUp *Gocce di caffe" e' il bar sotto casa.
 Senza togliere il prefisso lo stesso posto compare con due nomi a seconda del
@@ -95,6 +111,7 @@ terminale, e nel registro sembrano due esercenti.
       xlsx.js        legge il .xlsx della banca: ZIP, XML, seriali di Excel
       export.js      interfaccia Destinazione, oggi solo Actual Budget
       budget.js      stipendio, uscite fisse, risparmio, tetto a recupero
+      statistiche.js gruppi per esercente, ricorrenze, giorni della settimana
     src/ui/        DOM: nessuna logica, solo come si mostra
     web/           manifest, service worker, icone
     test/          node --test

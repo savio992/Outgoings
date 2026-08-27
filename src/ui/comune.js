@@ -115,6 +115,7 @@ export function icona(percorso) {
 export const ICONE = {
   oggi: 'M12 3a9 9 0 1 0 9 9M12 7v5l3 2',
   registro: 'M4 6h16M4 12h16M4 18h10',
+  analisi: 'M5 20V11M12 20V4M19 20v-6',
   budget: 'M3 7h18v12H3zM3 7l2-3h14l2 3M9 12h6',
 };
 

@@ -35,6 +35,45 @@ export function normalizzaEsercente(nome) {
 }
 
 /**
+ * Le parole di un nome, minuscole, senza accenti e **ordinate**.
+ *
+ * L'ordine buttato via e' il punto: la banca scrive "BIANCHI ANNA" nei bonifici
+ * ricevuti e "Anna Bianchi" in quelli inviati, e sono la stessa persona. Non
+ * serve sapere quale parola sia il nome e quale il cognome - basta che le
+ * parole siano le stesse.
+ *
+ * E' piu' larga di `normalizzaEsercente`, che decide l'identita' di una
+ * transazione: li' due nomi che collidono per sbaglio fondono due spese in una,
+ * qui fanno solo una riga di troppo in una classifica. Il prezzo dell'errore e'
+ * diverso, e quindi lo e' anche la soglia.
+ */
+export function impronta(nome) {
+  return String(nome ?? '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/).filter(Boolean).sort()
+    .join(' ');
+}
+
+/**
+ * Fra i modi diversi di scrivere lo stesso nome ne sceglie uno solo.
+ *
+ * Non inventa una forma nuova: sceglie fra quelle viste davvero, e sempre allo
+ * stesso modo - vince chi non e' tutto maiuscolo, perche' si legge meglio, e a
+ * parita' la prima in ordine alfabetico, perche' due letture degli stessi dati
+ * devono dare lo stesso risultato.
+ */
+export function grafiaMigliore(forme) {
+  const meglio = (a, b) => {
+    const maiuscoloA = a === a.toUpperCase() ? 1 : 0;
+    const maiuscoloB = b === b.toUpperCase() ? 1 : 0;
+    return maiuscoloA - maiuscoloB || (a < b ? -1 : a > b ? 1 : 0);
+  };
+  return [...forme].sort(meglio)[0] ?? null;
+}
+
+/**
  * Chiave di dedup: esercente, importo e minuto.
  *
  * `source` non entra nell'hash, ed e' voluto. Se la stessa spesa arriva prima da

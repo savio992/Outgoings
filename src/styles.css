@@ -376,6 +376,109 @@ body {
   display: flex; align-items: center; justify-content: center;
 }
 
+/* --- classifiche dell'analisi ------------------------------------------- */
+
+/* Una riga di classifica e' una riga di spesa con una barra sotto: stessa
+   altezza, stessi pesi, stesso sigillo colorato, cosi' passando da un tab
+   all'altro non si cambia alfabeto. La barra sta in fondo e non dietro il
+   testo - un rettangolo colorato sotto un nome lo rende meno leggibile
+   proprio nelle righe che pesano di piu'. */
+.gruppo {
+  position: relative;
+  display: flex; align-items: center; gap: 12px;
+  padding: 9px 18px 13px;
+  border-top: 1px solid var(--bordo);
+  background: none; border-left: 0; border-right: 0; border-bottom: 0;
+  width: 100%; text-align: left; color: inherit; font: inherit;
+  cursor: pointer;
+}
+.giorno + .gruppo { border-top: 0; }
+.gruppo:active { background: var(--carta-alt); }
+
+.gruppo .nome { flex: 1; min-width: 0; }
+.gruppo .nome b { display: block; font-weight: 550; font-size: 15px; letter-spacing: -.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gruppo .nome small { color: var(--testo-fioco); font-size: 12.5px; }
+.gruppo .importo { font-size: 15.5px; font-weight: 620; letter-spacing: -.01em; white-space: nowrap; }
+
+.quota {
+  position: absolute; left: 18px; bottom: 5px;
+  height: 3px; border-radius: 2px;
+  max-width: calc(100% - 36px);
+  background: color-mix(in srgb, var(--accento) 34%, transparent);
+  transition: width .6s cubic-bezier(.22, 1, .36, 1);
+}
+
+/* Una riga che il conto tiene ma su cui non si puo' decidere niente - "senza
+   categoria", un mese visto a meta' - resta leggibile e smette di chiamare. */
+.gruppo.spento-gruppo { cursor: default; }
+.gruppo.spento-gruppo .nome b,
+.gruppo.spento-gruppo .importo { color: var(--testo-tenue); }
+.gruppo.spento-gruppo .quota { background: var(--bordo); }
+.gruppo.spento-gruppo .sigillo { opacity: .45; }
+
+/* Nella classifica dei mesi non c'e' il sigillo: le iniziali di "Agosto 2026"
+   non distinguono nessun mese da nessun altro. Il mese aperto si riconosce
+   dallo sfondo, che e' l'unica cosa che li' cambia da riga a riga. */
+.gruppo.scelto { background: var(--carta-alt); }
+.gruppo.scelto .nome b { font-weight: 650; }
+
+.apri-tutto {
+  display: block; width: 100%;
+  padding: 11px; border: 0; border-top: 1px solid var(--bordo);
+  background: none; color: var(--accento);
+  font: inherit; font-size: 13.5px; font-weight: 560; cursor: pointer;
+}
+.apri-tutto:active { background: var(--carta-alt); }
+
+/* Sta dentro il titolo della carta, che e' tutto maiuscolo e spaziato: se
+   ereditasse quelle regole sembrerebbe un secondo titolo e non un tasto. */
+/* Non e' un tasto: dice con che unita' sono disegnate le barre di questa
+   carta, e sta accanto al titolo perche' vale per tutte le righe sotto. */
+.misura {
+  text-transform: none; letter-spacing: 0;
+  font-size: 11.5px; font-weight: 550; color: var(--testo-fioco);
+}
+
+.scambia {
+  border: 0; background: none; color: var(--accento);
+  font: inherit; font-size: 11.5px; font-weight: 620;
+  text-transform: none; letter-spacing: 0;
+  padding: 0; cursor: pointer;
+}
+
+.analisi .nota {
+  padding: 11px 18px 14px;
+  border-top: 1px solid var(--bordo);
+  font-size: 12.5px; line-height: 1.45;
+  color: var(--testo-tenue);
+}
+.analisi .nota.fioco { color: var(--testo-fioco); }
+.analisi .nota + .nota { border-top: 0; padding-top: 0; }
+
+/* --- il foglio di un esercente ------------------------------------------ */
+
+.etichette {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  padding: 0 18px 16px;
+}
+.etichetta {
+  padding: 7px 13px;
+  border: 1px solid var(--bordo); border-radius: 999px;
+  background: var(--carta); color: var(--testo-tenue);
+  font: inherit; font-size: 13.5px; font-weight: 550; cursor: pointer;
+}
+.etichetta.scelta { background: var(--accento); border-color: var(--accento); color: #fff; }
+/* Tratteggiata perche' non e' una scelta fra quelle proposte: apre un campo. */
+.etichetta.nuova { color: var(--accento); border-style: dashed; }
+
+.unisci {
+  width: 100%; padding: 11px 12px;
+  border: 1px solid var(--bordo); border-radius: 12px;
+  background: var(--carta-alt); color: var(--testo);
+  font: inherit; font-size: 15px;
+}
+
 /* --- navigazione -------------------------------------------------------- */
 
 .nav {
@@ -447,5 +550,5 @@ body {
 .pila > * + * { margin-top: 10px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .barra span, .gambo .riempimento, .foglio, .velo { transition: none; animation: none; }
+  .barra span, .gambo .riempimento, .quota, .foglio, .velo { transition: none; animation: none; }
 }

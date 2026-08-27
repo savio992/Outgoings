@@ -7,6 +7,7 @@ import { el, icona, ICONE, oggiIso } from './ui/comune.js';
 import { carica, getRegistro, getConfig, setRegistro, setConfig, setConfigZitto, osserva } from './store.js';
 import { vistaOggi } from './ui/oggi.js';
 import { vistaRegistro } from './ui/registro.js';
+import { vistaAnalisi } from './ui/analisi.js';
 import { vistaBudget } from './ui/budget.js';
 import { apriIncolla } from './ui/incolla.js';
 import { apriModifica } from './ui/modifica.js';
@@ -16,12 +17,17 @@ export const NOME = 'Briciole';
 const VISTE = [
   { id: 'oggi', nome: 'Oggi', icona: ICONE.oggi },
   { id: 'registro', nome: 'Registro', icona: ICONE.registro },
+  { id: 'analisi', nome: 'Analisi', icona: ICONE.analisi },
   { id: 'budget', nome: 'Budget', icona: ICONE.budget },
 ];
 
 let vista = 'oggi';
-// Il mese aperto nel registro. `null` vuol dire "quello piu' recente", cosi'
-// dopo un import il registro si apre dove sono arrivati i dati nuovi.
+// Il mese aperto. Registro e Analisi lo condividono apposta: passare da
+// "cosa e' successo ad agosto" a "dove sono finiti i soldi ad agosto" e'
+// la stessa domanda vista da due lati, e ritrovarsi su un altro mese
+// cambiando tab vorrebbe dire rifare la strada ogni volta.
+// `null` vuol dire "quello piu' recente", cosi' dopo un import il registro
+// si apre dove sono arrivati i dati nuovi.
 let mese = null;
 
 const DATA = new Intl.DateTimeFormat('it-IT', {
@@ -42,11 +48,26 @@ function correggi(t) {
 function corpo() {
   const registro = getRegistro();
   const config = getConfig();
+  const vaiA = (nuovo) => {
+    mese = nuovo;
+    disegna();
+    scrollTo({ top: 0 });
+  };
   if (vista === 'registro') {
-    return vistaRegistro(registro, correggi, mese ?? oggiIso().slice(0, 7), (nuovo) => {
-      mese = nuovo;
-      disegna();
-      scrollTo({ top: 0 });
+    return vistaRegistro(registro, correggi, mese ?? oggiIso().slice(0, 7), vaiA);
+  }
+  if (vista === 'analisi') {
+    return vistaAnalisi({
+      registro,
+      config,
+      mese: mese ?? oggiIso().slice(0, 7),
+      vaiA,
+      // Le classifiche aperte e il taglio scelto vivono dentro la vista: per
+      // ridisegnarle basta rifare il giro da qui, senza passarli in giro.
+      ridisegna: disegna,
+      oggi: oggiIso(),
+      salvaConfig: setConfig,
+      alTocco: correggi,
     });
   }
   if (vista === 'budget') return vistaBudget(registro, config, setConfig, setRegistro, setConfigZitto);
