@@ -96,6 +96,25 @@ nella configurazione e si applicano al momento del conto. Il registro tiene le
 parole esatte della banca: un raggruppamento sbagliato si disfa con un tocco,
 un registro riscritto no.
 
+**Le due schermate dell'app non mostrano la stessa cosa.** "Ultime spese" ha
+esercente, citta' e un giorno relativo, ma l'ora non ce l'ha; "movimenti" ha il
+tipo d'operazione, il segno e - sotto il nome - la data *con il minuto*, ma la
+citta' non la scrive. Le legge lo stesso `parseAppList`, perche' il lavoro e' lo
+stesso, e la schermata si riconosce da cio' che solo i movimenti hanno: il segno
+davanti all'importo e il tipo d'operazione in cima. Serve saperlo per la
+fiducia: chiedere ai movimenti la citta' che non scrivono vorrebbe dire mandare
+in revisione tutto quanto. Un tipo d'operazione che non conosciamo non porta via
+la spesa - resta un nome, apre una voce che nessun importo completera' e sparisce,
+mentre l'esercente sotto continua a leggersi. Si perde l'intestazione, non
+l'acquisto.
+
+**Il segno lo tiene la transazione, non la cifra.** Un importo negativo nel
+registro si sommerebbe agli altri e il totale del giorno smetterebbe di essere un
+totale. Dal `-14,27 €` si legge `amount: 14.27` e `entrata: false`, com'e' gia'
+per l'estratto conto, e `eOperazioneFissa` sta in `banca.js` e la usano tutte e
+due: due politiche diverse su cosa sia una fissa vorrebbero dire la stessa spesa
+dentro il tetto giornaliero letta da una parte e fuori letta dall'altra.
+
 **Il gateway non e' l'esercente.** "SumUp *Gocce di caffe" e' il bar sotto casa.
 Senza togliere il prefisso lo stesso posto compare con due nomi a seconda del
 terminale, e nel registro sembrano due esercenti.
@@ -105,7 +124,7 @@ terminale, e nel registro sembrano due esercenti.
     src/domain/    puro, testato, sorgente-agnostico
       tempo.js       tempo relativo -> ISO con Europe/Rome e DST (muore con la v2)
       importo.js     "1.234,56 €" -> 1234.56, con la tolleranza dell'OCR
-      parser.js      parseNotifications e parseStructured
+      parser.js      notifiche, le due liste dell'app, il payload dell'ANCS
       registro.js    id, merge idempotente, JSONL, totale del giorno
       banca.js       estratto conto: la sorgente piu' precisa delle tre
       xlsx.js        legge il .xlsx della banca: ZIP, XML, seriali di Excel

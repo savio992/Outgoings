@@ -174,6 +174,67 @@ export function risolviTempo(riga, catturatoIl) {
 const MESI = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno',
   'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'];
 
+// Nella lista dei movimenti l'app abbrevia: "27 ago 2026". Sono le tre lettere
+// canoniche dell'italiano, con "sett" ammesso perche' si vede scritto in tutti
+// e due i modi.
+const MESI_BREVI = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu',
+  'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
+
+/** Il numero del mese, per esteso o abbreviato, oppure 0 se non e' un mese. */
+function numeroMese(parola) {
+  const p = String(parola).replace(/\.$/, '');
+  const intero = MESI.indexOf(p);
+  if (intero >= 0) return intero + 1;
+  const breve = MESI_BREVI.indexOf(p === 'sett' ? 'set' : p);
+  return breve + 1;
+}
+
+/**
+ * Vero se quel giorno di quel mese esiste davvero.
+ *
+ * `istanteLocale` non se ne accorgerebbe: un 31 febbraio scivola in avanti e
+ * diventa il 3 marzo, cioe' una data che nessuno ha scritto da nessuna parte.
+ * Meglio non leggere la riga che leggerla spostata.
+ */
+function giornoValido(anno, mese, giorno) {
+  const d = new Date(Date.UTC(anno, mese - 1, giorno));
+  return d.getUTCFullYear() === anno && d.getUTCMonth() === mese - 1 && d.getUTCDate() === giorno;
+}
+
+const RE_DATA_NUMERICA = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+const RE_ISTANTE = /^(\d{1,2})\/(\d{1,2})\/(\d{4})[\s,]+(\d{1,2})([:.])(\d{2})$/;
+
+/**
+ * "27/08/2026 16:36" -> l'istante esatto, non solo il giorno.
+ *
+ * E' l'unica riga di uno screenshot che porti il minuto dell'acquisto senza
+ * passare dall'estratto conto: nella lista dei movimenti l'app la scrive sotto
+ * il nome dell'esercente, e vale quanto la data dentro la descrizione della
+ * banca. Ritorna `null` se non e' di questa forma - meglio niente ora che
+ * un'ora dedotta.
+ */
+export function risolviIstanteApp(testo) {
+  const m = String(testo ?? '').trim().match(RE_ISTANTE);
+  if (!m) return null;
+
+  const giorno = Number(m[1]);
+  const mese = Number(m[2]);
+  const anno = Number(m[3]);
+  const ora = Number(m[4]);
+  const minuto = Number(m[6]);
+  if (!giornoValido(anno, mese, giorno) || ora > 23 || minuto > 59) return null;
+
+  const ts = istanteLocale(anno, mese, giorno, ora, minuto);
+  return {
+    giorno: giornoLocale(ts),
+    occurredAt: isoRoma(ts),
+    ts,
+    // Stessa cautela delle notifiche: i due punti letti come punto sono una
+    // svista d'OCR plausibile, non un formato.
+    confidence: m[5] === ':' ? 'high' : 'low',
+  };
+}
+
 const GIORNI_INTERI = ['domenica', 'lunedi', 'martedi', 'mercoledi', 'giovedi', 'venerdi', 'sabato'];
 
 /** Via gli accenti, cosi' "Lunedi'" e "Lunedi" sono la stessa parola. */
@@ -242,14 +303,25 @@ export function risolviGiornoApp(testo, catturatoIl) {
 
   // Piu' indietro di una settimana l'app scrive la data per esteso. Senza anno
   // si prende l'ultima occorrenza passata, non quella futura.
-  const data = t.match(/^(\d{1,2})\s+([a-z]+)(?:\s+(\d{4}))?$/);
+  const data = t.match(/^(\d{1,2})\s+([a-z]+\.?)(?:\s+(\d{4}))?$/);
   if (data) {
-    const mese = MESI.indexOf(data[2]) + 1;
+    const mese = numeroMese(data[2]);
     if (!mese) return null;
     const g = Number(data[1]);
-    if (g < 1 || g > 31) return null;
     let anno = data[3] ? Number(data[3]) : oggi.year;
     if (!data[3] && (mese > oggi.month || (mese === oggi.month && g > oggi.day))) anno -= 1;
+    if (!giornoValido(anno, mese, g)) return null;
+    return certo(giornoLocale(istanteLocale(anno, mese, g, 12, 0)));
+  }
+
+  // La lista dei movimenti scrive anche la data tutta in cifre, sotto il nome
+  // dell'esercente. Qui l'anno c'e' sempre: niente da dedurre.
+  const numerica = t.match(RE_DATA_NUMERICA);
+  if (numerica) {
+    const g = Number(numerica[1]);
+    const mese = Number(numerica[2]);
+    const anno = Number(numerica[3]);
+    if (!giornoValido(anno, mese, g)) return null;
     return certo(giornoLocale(istanteLocale(anno, mese, g, 12, 0)));
   }
 

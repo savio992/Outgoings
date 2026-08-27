@@ -34,13 +34,28 @@ function riga(...pezzi) {
 function riepilogoScreenshot(esito, tipo) {
   const { aggiunte, duplicate, coperte } = esito;
   const incerte = aggiunte.filter((t) => t.confidence === 'low').length;
-  const totale = aggiunte.reduce((s, t) => s + t.amount, 0);
+  // La schermata dei movimenti porta dentro anche accrediti e uscite fisse.
+  // Sommarli insieme alle spese darebbe un totale che non e' il totale di
+  // niente: un bonifico ricevuto non e' una spesa, e una domiciliazione non
+  // consuma il tetto del giorno.
+  const spese = aggiunte.filter((t) => !t.entrata && !t.fissa);
+  const fisse = aggiunte.filter((t) => t.fissa);
+  const entrate = aggiunte.filter((t) => t.entrata);
+  const somma = (righe) => righe.reduce((s, t) => s + t.amount, 0);
 
   const pezzi = [];
-  pezzi.push(aggiunte.length
-    ? riga(el('b', { testo: `${aggiunte.length} ${aggiunte.length === 1 ? 'spesa aggiunta' : 'spese aggiunte'}` }),
-      ` per ${euro(totale)}.`)
+  pezzi.push(spese.length
+    ? riga(el('b', { testo: `${spese.length} ${spese.length === 1 ? 'spesa aggiunta' : 'spese aggiunte'}` }),
+      ` per ${euro(somma(spese))}.`)
     : riga('Nessuna spesa nuova.'));
+  if (fisse.length) {
+    pezzi.push(riga(`${fisse.length} ${fisse.length === 1 ? 'uscita fissa' : 'uscite fisse'} `,
+      `per ${euro(somma(fisse))}: non consumano il tetto giornaliero.`));
+  }
+  if (entrate.length) {
+    pezzi.push(riga(`${entrate.length} ${entrate.length === 1 ? 'accredito' : 'accrediti'} `,
+      `per ${euro(somma(entrate))}.`));
+  }
   if (duplicate.length) {
     pezzi.push(riga(`${duplicate.length} ${duplicate.length === 1 ? 'era gia’ nel registro' : 'erano gia’ nel registro'}.`));
   }

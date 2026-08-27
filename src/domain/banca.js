@@ -50,6 +50,18 @@ const GATEWAY = /^(sumup|paypal|paypall|stripe|satispay|nexi|axerve|sq|square|sh
 // dove una spesa del genere deve pesare.
 const FISSA = /^\s*(domiciliazione|addebito\s+(diretto|sdd|preautorizzato)|\bsdd\b|commissioni|spese\s+(bancarie|di\s+tenuta|conto)|imposta|bollo|canone|rata\s+(mutuo|finanziamento))/i;
 
+/**
+ * Vero se il tipo di operazione e' per costruzione una uscita fissa.
+ *
+ * Sta qui e non nel parser perche' la lista dei movimenti dell'app scrive lo
+ * stesso tipo d'operazione che la banca mette in cima alla descrizione: due
+ * politiche diverse su cosa sia una fissa vorrebbero dire la stessa spesa dentro
+ * il tetto giornaliero letta da una parte e fuori letta dall'altra.
+ */
+export function eOperazioneFissa(descrizione) {
+  return FISSA.test(String(descrizione ?? ''));
+}
+
 /** Divide una riga di CSV o TSV rispettando le virgolette. */
 function dividi(riga, separatore) {
   const fuori = [];
@@ -402,7 +414,7 @@ export function parseEstrattoContoDaGriglia(griglia, opzioni = {}) {
       // volta: mutuo e rate condominiali si pagano con un bonifico come i
       // pannolini, e nessuna regola puo' distinguerli guardando la causale.
       fissa: !entrata && !pos
-        && (FISSA.test(descrizione)
+        && (eOperazioneFissa(descrizione)
           || fisseImparate.has(chiaveFissa(fuoriPos.merchant, fuoriPos.causale))
           || fisseImparate.has(chiaveFissa(fuoriPos.merchant, null))),
       operazione: pos?.operazione ?? null,

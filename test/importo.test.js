@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { parseImporto } from '../src/domain/importo.js';
 
 test('legge i campioni veri', () => {
-  assert.deepEqual(parseImporto('4,00 €'), { amount: 4, confidence: 'high', simbolo: '€' });
+  assert.deepEqual(parseImporto('4,00 €'), { amount: 4, confidence: 'high', simbolo: '€', segno: null });
   assert.equal(parseImporto('63,03 €').amount, 63.03);
   assert.equal(parseImporto('3,50 €').amount, 3.5);
   assert.equal(parseImporto('19,00 €').amount, 19);
@@ -49,6 +49,22 @@ test('le migliaia non raggruppate a tre non si indovinano', () => {
 
 test('cio' + "'" + ' che non e' + "'" + ' un importo non lo diventa', () => {
   for (const t of ['Gocce Di Caffe. Bari, Puglia', 'Poste Italiane', 'Caffe', '', '   ', 'ieri, 18:51', '€', '0,00 €']) {
+    assert.equal(parseImporto(t), null, t);
+  }
+});
+
+// Il segno lo scrive solo la lista dei movimenti dell'app: e' l'unico posto in
+// cui uno screenshot dice da solo se i soldi sono usciti o entrati.
+test('il segno si legge e si tiene da parte, ma l' + "'" + ' importo resta positivo', () => {
+  assert.deepEqual(parseImporto('-14,27 €'), { amount: 14.27, confidence: 'high', simbolo: '€', segno: -1 });
+  assert.deepEqual(parseImporto('+7,50 €'), { amount: 7.5, confidence: 'high', simbolo: '€', segno: 1 });
+  // Il meno "vero" della tipografia, che l'app usa e l'OCR conserva.
+  assert.equal(parseImporto('− 14,27 €').segno, -1);
+  assert.equal(parseImporto('14,27 €').segno, null);
+});
+
+test('un segno da solo non e' + "'" + ' un importo', () => {
+  for (const t of ['-', '+', '- €', '-0,00 €']) {
     assert.equal(parseImporto(t), null, t);
   }
 });
