@@ -3,8 +3,8 @@
 Stato: **deciso.** Opzione **C**, repo su **GitHub**, registro come **file JSONL
 su iCloud Drive** con il `localStorage` a fare da cache.
 
-Restano aperte due domande che non bloccano il dominio ma lo tarano: il dump
-grezzo di un OCR vero, e se esistano notifiche di accredito. Vedi in fondo.
+Resta aperta una domanda che non blocca il dominio ma lo tara: il dump grezzo
+di un OCR vero, per le notifiche di accredito. Vedi in fondo.
 
 ---
 
@@ -362,6 +362,19 @@ Le prime tre sono decise: opzione C, GitHub, JSONL su iCloud Drive. Restano:
    card sono separate da righe vuote. Fai un *Copia testo* su uno screenshot
    vero, incollalo qui grezzo (anche con importi alterati, se preferisci) e il
    parser nasce tarato invece che indovinato.
-2. **Arrivano anche notifiche di accredito** (rimborsi, bonifici in entrata)?
-   Il modello dice `amount` positivo in EUR: devo sapere se serve un segno o un
-   tipo, o se filtro e scarto.
+2. **Le notifiche di accredito.** *Deciso: non si filtrano, si leggono.*
+   Scartarle era la strada sbagliata — dei soldi che entrano ci si accorge
+   comunque, ma il buco resta nell'estratto conto — e cosi' e' anche un segno o
+   un tipo dentro `amount`: un importo negativo nel registro si sommerebbe agli
+   altri e il totale del giorno smetterebbe di essere un totale. Il verso e' un
+   campo suo, `entrata`, e la cifra resta positiva sempre.
+   A dirlo sono, in quest'ordine: il segno accanto all'importo nella lista dei
+   movimenti, che vale quanto la colonna dell'estratto conto; il tipo
+   d'operazione, quando lo dice per esteso (`eEntrata` in `banca.js` — dentro non
+   c'e' "bonifico", che e' la stessa parola nei due versi); e nelle notifiche le
+   parole della card, che valgono un controllo a mano.
+   **Quello che serve ancora e' un *Copia testo* di una notifica di accredito
+   vera.** Di quelle di spesa ne abbiamo quattro; di accredito nessuna, quindi
+   le parole che il parser cerca sono quelle che *ci aspettiamo* di leggere, e
+   finche' restano un'aspettativa la voce esce in revisione. Con una card vera
+   diventa una lettura come le altre.
