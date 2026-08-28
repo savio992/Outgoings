@@ -171,6 +171,33 @@ test('la voce con l' + "'" + ' ora non cambia id quando sopra ne arrivano altre'
   assert.equal(dopo.find((x) => x.merchant === 'WWW.AMAZON.IT').id, sola.id);
 });
 
+test('l' + "'" + ' icona a sinistra non diventa l' + "'" + ' esercente', () => {
+  // Ogni movimento ha un'icona in testa: l'orologio del "non contabilizzato",
+  // la freccia verde dell'accredito. Nel dump vero Live Text non le scrive, ma
+  // quando le scrive le scrive come lettere - la freccia diventa "→I", il tondo
+  // diventa "O" - e cadendo fra il tipo e il nome prenderebbero il posto
+  // dell'esercente. Il nome vero aprirebbe una voce nuova, senza tipo: cioe'
+  // senza verso e senza fissa, e con la fiducia alta perche' il resto e' a posto.
+  for (const icona of ['→I', 'O', '→|', '⏱']) {
+    const t = parseAppList([
+      'PAGAMENTO POS', icona, '27 ago 2026', 'WWW.AMAZON.IT', '-14,27 €', '27/08/2026 16:36',
+    ].join('\n'), GIOVEDI);
+    assert.equal(t.length, 1, icona);
+    assert.equal(t[0].merchant, 'WWW.AMAZON.IT', icona);
+    assert.equal(t[0].entrata, false, icona);
+  }
+});
+
+test('con le icone dentro, la schermata si legge identica', () => {
+  const conIcone = parseAppList(SCHERMATA.split('\n').flatMap(
+    (r, i) => (i === 0 || r.startsWith('BONIFICO') ? ['→I', r] : [r]),
+  ).join('\n'), GIOVEDI);
+  assert.deepEqual(
+    conIcone.map((x) => [x.merchant, x.amount, x.entrata, x.confidence]),
+    parseAppList(SCHERMATA, GIOVEDI).map((x) => [x.merchant, x.amount, x.entrata, x.confidence]),
+  );
+});
+
 test('le ultime spese restano quello che erano: niente segno, niente verso', () => {
   // Nell'altra schermata l'importo non ha segno e il tipo d'operazione non
   // c'e': chiedere il verso a chi non lo scrive vorrebbe dire inventarlo.

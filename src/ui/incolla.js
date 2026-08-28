@@ -233,7 +233,14 @@ export function apriIncolla({ registro, config, salvaRegistro, salvaConfig }) {
     const risultato = merge(registro, letto.lette);
     if (!risultato.aggiunte.length && !risultato.duplicate.length && !risultato.coperte.length) {
       messaggio('Non ho riconosciuto niente. Controlla di aver copiato la lista dei movimenti, ',
-        'il Centro Notifiche o le righe dell’estratto conto — oppure scegli il file .xlsx della banca.');
+        'il Centro Notifiche o le righe dell’estratto conto — oppure scegli il file .xlsx della banca.',
+        // Dire "non ha funzionato" e basta lascia solo da riprovare uguale. Da
+        // uno screenshot servono tre righe, e conviene dire quali sono.
+        el('div', { class: 'minuta', style: 'margin-top:8px' }, [
+          'Da uno screenshot delle notifiche mi servono tre righe di fila: il nome dell’app, ',
+          'l’esercente e l’importo. Se l’ora manca la spesa entra lo stesso, col giorno di oggi ',
+          'e da verificare.',
+        ]));
       return false;
     }
     esito.replaceChildren(el('div', { class: 'carta' }, [riepilogoScreenshot(risultato, letto.tipo)]));

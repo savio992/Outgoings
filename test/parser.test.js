@@ -41,6 +41,56 @@ test('l' + "'" + ' intestazione spezzata su due righe funziona uguale', () => {
   assert.equal(t[0].occurredAt, '2026-08-26T08:06:00+02:00');
 });
 
+test('la card intera senza orario si legge, col giorno dell' + "'" + ' incollata', () => {
+  // Non e' una card tagliata: nome dell'app, esercente e importo ci sono tutti,
+  // manca solo il *quando*. Scartarla vorrebbe dire far sparire una spesa che si
+  // legge per intero - e farla sparire in silenzio.
+  const t = parseNotifications(card(
+    'Poste Italiane',
+    'Gocce Di Caffe. Bari, Puglia',
+    '4,00 €',
+  ), MERCOLEDI);
+  assert.equal(t.length, 1);
+  assert.equal(t[0].merchant, 'Gocce Di Caffe');
+  assert.equal(t[0].amount, 4);
+  assert.equal(t[0].city, 'Bari');
+  assert.equal(t[0].occurredAt, '2026-08-26T00:00:00+02:00');
+  assert.equal(t[0].timeKnown, false);
+  assert.equal(t[0].confidence, 'low');
+});
+
+test('due card senza orario nello stesso giorno restano due', () => {
+  // Senza ora e con lo stesso importo sarebbero indistinguibili: e' l'ordinale a
+  // tenerle separate, come nella lista dell'app.
+  const t = parseNotifications(card(
+    'Poste Italiane', 'Gocce Di Caffe. Bari, Puglia', '4,00 €',
+    'Poste Italiane', 'Gocce Di Caffe. Bari, Puglia', '4,00 €',
+  ), MERCOLEDI);
+  assert.equal(t.length, 2);
+  assert.notEqual(t[0].id, t[1].id);
+});
+
+test('senza il nome dell' + "'" + ' app sopra, la card resta tagliata e si scarta', () => {
+  // E' la differenza fra "manca l'ora" e "manca un pezzo": qui sopra l'importo
+  // comincia gia' la card precedente, e completare vorrebbe dire attaccare un
+  // importo a un esercente che non e' il suo.
+  const t = parseNotifications(card(
+    'Gocce Di Caffe. Bari, Puglia',
+    '4,00 €',
+  ), MERCOLEDI);
+  assert.equal(t.length, 0);
+});
+
+test('l' + "'" + ' ora, quando c' + "'" + ' e' + "'" + ', vince sul giorno dell' + "'" + ' incollata', () => {
+  const [conOra] = parseNotifications(card(
+    'Poste Italiane   08:06', 'Gocce Di Caffe. Bari, Puglia', '4,00 €',
+  ), MERCOLEDI);
+  assert.equal(conOra.occurredAt, '2026-08-26T08:06:00+02:00');
+  assert.equal(conOra.timeKnown, true);
+  assert.equal(conOra.confidence, 'high');
+  assert.equal(conOra.posizione, undefined);
+});
+
 test('la card tagliata in cima si scarta, non si indovina', () => {
   // Lo screenshot comincia a meta' di una card: c' + "'" + 'e' + "'" + ' l' + "'" + ' importo ma non l' + "'" + ' intestazione.
   const testo = card(
