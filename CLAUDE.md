@@ -26,6 +26,12 @@ Mai aggiustare in silenzio un numero che rappresenta soldi, mai completare una
 card tagliata a meta'. Correggere tre voci a mano costa meno che fidarsi di un
 importo sbagliato.
 
+Ma "tagliata a meta'" vuol dire che manca un pezzo dell'identita' - l'esercente
+o l'importo - non che manca l'ora. Una card intera senza orario si legge col
+giorno dell'incollata, senza ora e in revisione: la data si sistema con un tocco,
+una spesa che non c'e' non si sistema affatto. A dire quale dei due casi sia e' il
+nome dell'app sopra l'esercente: se c'e', la card comincia li' ed e' tutta li'.
+
 **Niente rete, niente telemetria.** Sono movimenti bancari. L'OCR sta
 on-device, i dati restano sul telefono e su iCloud Drive. Nessun servizio terzo,
 nessuna analytics, nessuna chiave da custodire.

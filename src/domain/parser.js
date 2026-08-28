@@ -7,6 +7,7 @@
 
 import {
   risolviTempo, contieneOra, isoRoma, risolviGiornoApp, risolviIstanteApp, inizioGiorno,
+  giornoLocale,
 } from './tempo.js';
 import { parseImporto } from './importo.js';
 import { idTransazione } from './registro.js';
@@ -92,7 +93,10 @@ export function parseNotifications(rawText, capturedAt) {
     .map((r) => r.trim())
     .filter(Boolean);
 
-  const fuori = [];
+  const riferimento = capturedAt instanceof Date ? capturedAt.getTime() : Number(capturedAt);
+  const giornoIncollata = Number.isFinite(riferimento) ? giornoLocale(riferimento) : null;
+
+  const voci = [];
   for (let i = 0; i < righe.length; i++) {
     const importo = parseImporto(righe[i]);
     if (!importo) continue;
@@ -103,19 +107,37 @@ export function parseNotifications(rawText, capturedAt) {
     // L'intestazione puo' essere una riga sola ("Poste Italiane   08:06") oppure
     // due, in ordine imprevedibile, a seconda di come l'OCR ha sciolto la card.
     // Si risale finche' non si trova un orario, fermandosi appena si entra nella
-    // card precedente.
+    // card precedente. Per strada ci si segna il nome dell'app: quando l'ora non
+    // salta fuori e' lui a dire di che caso si tratta.
     let intestazione = null;
+    let cima = null;
     for (let j = i - 2; j >= 0 && j >= i - 4; j--) {
       if (contieneOra(righe[j])) {
         intestazione = righe[j];
         break;
       }
+      if (APP.test(righe[j])) cima = righe[j];
       if (parseImporto(righe[j])) break;
     }
-    if (!intestazione) continue;
 
-    const tempo = risolviTempo(intestazione, capturedAt);
-    if (!tempo) continue;
+    // Senza orario le card sono due cose diverse, e a distinguerle e' il nome
+    // dell'app.
+    //
+    // Se c'e', la card e' intera: nome, esercente e importo stanno tutti li' e
+    // manca solo il *quando*. Scartarla vorrebbe dire far sparire una spesa che
+    // si legge per intero, e farla sparire in silenzio - che e' il solo modo di
+    // sbagliare che questa app non si puo' permettere. Si legge col giorno
+    // dell'incollata, senza ora e in revisione: la data si sistema con un tocco,
+    // una spesa che non c'e' non si sistema affatto.
+    //
+    // Se non c'e', sopra l'importo comincia gia' la card precedente: questa e'
+    // tagliata dal bordo dello screenshot, e completarla vorrebbe dire attaccare
+    // un importo a un esercente che non e' il suo.
+    let tempo = null;
+    if (intestazione) {
+      tempo = risolviTempo(intestazione, capturedAt);
+      if (!tempo) continue;
+    } else if (!cima || !giornoIncollata) continue;
 
     const { merchant, city, region } = spezzaEsercente(rigaEsercente);
     if (!merchant) continue;
@@ -125,23 +147,34 @@ export function parseNotifications(rawText, capturedAt) {
     const perSegno = importo.segno === 1;
     const perTesto = !perSegno && testoDiAccredito(rigaEsercente);
 
-    fuori.push(componi({
+    voci.push({
       merchant,
       city,
       region,
       amount: importo.amount,
       // Il campo compare solo quando c'e' qualcosa che lo dice. Assente vuol
       // dire "la card non ne parla", ed e' il caso di tutte le notifiche di
-      // spesa che abbiamo visto: a valle conta come uscita, com'e' giusto.
+      // spesa che abbiamo viste: a valle conta come uscita, com'e' giusto.
       ...(perSegno || perTesto ? { entrata: true } : {}),
-      occurredAt: tempo.occurredAt,
-      timeKnown: true,
+      giorno: tempo ? null : giornoIncollata,
+      occurredAt: tempo ? tempo.occurredAt : inizioGiorno(giornoIncollata),
+      timeKnown: Boolean(tempo),
       source: 'screenshot',
-      confidence: peggiore(importo.confidence, tempo.confidence, perTesto ? 'low' : 'high'),
-      rawText: [intestazione, rigaEsercente, righe[i]].join('\n'),
-    }));
+      confidence: peggiore(
+        importo.confidence,
+        tempo ? tempo.confidence : 'low',
+        perTesto ? 'low' : 'high',
+      ),
+      rawText: [intestazione ?? cima, rigaEsercente, righe[i]].join('\n'),
+    });
   }
-  return fuori;
+
+  // Come nella lista dell'app: l'ordinale serve solo dove l'ora non c'e'. Due
+  // caffe' da 4,00 € nello stesso giorno sono due spese, e senza un numero che
+  // le distingua diventerebbero una sola.
+  numeraNelGiorno(voci.filter((v) => !v.timeKnown));
+
+  return voci.map(({ giorno, ...campi }) => componi(campi));
 }
 
 /**
