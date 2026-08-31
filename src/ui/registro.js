@@ -26,8 +26,13 @@ export function spesa(t, alTocco, notaFissa) {
   // in cui hai speso settecento euro.
   // La causale di un bonifico vale piu' di tutto il resto: "Pannolini" dice
   // quello che il nome del beneficiario da solo non dice.
+  // "a mano" al posto della citta' che una spesa scritta da te non ha: dice da
+  // dove viene la riga, ed e' l'informazione che serve quando i conti non
+  // tornano - quella e' l'unica che nessun import rifara' mai.
   const nota = notaFissa ?? t.causale
-    ?? (t.entrata ? 'accredito' : t.fissa ? 'uscita fissa' : luogo);
+    ?? (t.entrata ? 'accredito'
+      : t.fissa ? 'uscita fissa'
+        : t.source === 'manuale' ? 'a mano' : luogo);
 
   return el('button', {
     class: 'spesa',

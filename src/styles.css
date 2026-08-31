@@ -348,6 +348,9 @@ body {
 .campo input[type='date'] { width: auto; min-width: 150px; text-align: left; }
 .campo input:focus { outline: 2px solid var(--accento); outline-offset: -1px; }
 .campo input.sbagliato { border-color: var(--allarme); color: var(--allarme); }
+/* Le grafie gia' usate, dentro una riga di campo: la spaziatura la mette il
+   .campo, non le etichette, che qui non sono in fondo a un foglio. */
+.campo .etichette { padding: 0; flex: 1; }
 .campo label.fioco { color: var(--testo-tenue); }
 .campo .togli.piu { font-size: 20px; color: var(--accento); }
 .campo label .fioco { color: var(--testo-fioco); font-size: 13px; }
