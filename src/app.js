@@ -11,6 +11,8 @@ import { vistaAnalisi } from './ui/analisi.js';
 import { vistaBudget } from './ui/budget.js';
 import { apriIncolla } from './ui/incolla.js';
 import { apriModifica } from './ui/modifica.js';
+import { apriAggiungi } from './ui/aggiungi.js';
+import { meseDi } from './domain/registro.js';
 
 export const NOME = 'Briciole';
 
@@ -74,6 +76,44 @@ function corpo() {
   return vistaOggi(registro, config, correggi);
 }
 
+/**
+ * I modi di far entrare una spesa, uno sotto l'altro in fondo alla schermata.
+ *
+ * Stanno insieme perche' rispondono alla stessa domanda - come ci arriva questa
+ * spesa nel registro - e il tasto a mano compare anche nel Registro: che una
+ * spesa in contanti non l'hai segnata te ne accorgi guardando il giorno in cui
+ * manca, non stando su Oggi.
+ */
+function azioni() {
+  const pezzi = [];
+  if (vista === 'oggi') {
+    pezzi.push(el('button', {
+      class: 'bottone', type: 'button', testo: 'Incolla uno screenshot',
+      onclick: () => apriIncolla({
+        registro: getRegistro(),
+        config: getConfig(),
+        salvaRegistro: setRegistro,
+        salvaConfig: setConfig,
+      }),
+    }));
+  }
+  if (vista === 'oggi' || vista === 'registro') {
+    pezzi.push(el('button', {
+      class: 'bottone tenue', type: 'button', testo: 'Scrivi una spesa a mano',
+      onclick: () => apriAggiungi({
+        leggiRegistro: getRegistro,
+        leggiConfig: getConfig,
+        salvaRegistro: setRegistro,
+        salvaConfig: setConfig,
+        // Una spesa segnata su un mese che non stai guardando entrerebbe davvero
+        // ma a schermo non succederebbe niente, e il tasto sembrerebbe rotto.
+        dopoSalvato: (t) => { mese = meseDi(t); },
+      }),
+    }));
+  }
+  return pezzi.length ? el('div', { class: 'pila' }, pezzi) : null;
+}
+
 function navigazione() {
   return el('nav', { class: 'nav' }, VISTE.map((v) => el('button', {
     type: 'button',
@@ -96,17 +136,7 @@ function disegna() {
       el('div', { class: 'data', testo: dataDiOggi() }),
     ]),
     corpo(),
-    vista === 'oggi'
-      ? el('button', {
-        class: 'bottone', type: 'button', testo: 'Incolla uno screenshot',
-        onclick: () => apriIncolla({
-          registro: getRegistro(),
-          config: getConfig(),
-          salvaRegistro: setRegistro,
-          salvaConfig: setConfig,
-        }),
-      })
-      : null,
+    azioni(),
   ].filter(Boolean));
 
   const vecchia = document.querySelector('.nav');

@@ -3,7 +3,8 @@
 Le notifiche di spesa di Poste Italiane sull'iPhone diventano un registro, senza
 inserire nulla a mano. Oggi il testo arriva da uno screenshot passato per l'OCR
 di Vision; domani dallo stesso payload letto in tempo reale da un ESP32 via
-ANCS/BLE.
+ANCS/BLE. A mano si scrive solo cio' che nessuna di quelle sorgenti puo' vedere
+- i contanti, prima di tutto.
 
 Le decisioni di architettura e il perche' stanno in `PIANO.md`. Leggilo prima di
 cambiare la forma delle cose.
@@ -54,6 +55,24 @@ numero d'operazione e la notifica non l'avra' mai - e nemmeno sui campi, visto
 che lo stesso posto ha due nomi diversi nelle due sorgenti. Scartarla si ripara
 da solo: se era davvero una spesa non ancora contabilizzata, il prossimo
 estratto conto la porta dentro.
+
+**Cio' che scrivi a mano l'estratto conto non lo tocca.** E' l'unica eccezione
+alla regola qui sopra, e vale in tutti e due i versi: `source: 'manuale'` entra
+anche dentro il periodo coperto e non viene rimosso quando quel periodo si
+riscrive (`laRiscriveLaBanca` in `registro.js`, usata da `merge` e da
+`sostituisciPeriodo`). Il motivo non e' un riguardo per l'utente: una spesa in
+contanti nell'estratto conto non c'e' e non ci sara' mai - li' dentro c'e' il
+prelievo, non il caffe' - quindi scartarla non si riparerebbe da solo. Le
+letture automatiche si possono buttare perche' il prossimo import le riporta
+dentro; questa no, e cancellarla vorrebbe dire perdere l'unica copia esistente.
+Quindi la sorgente non e' solo un'etichetta di provenienza: e' cio' che decide
+se una riga e' ricostruibile.
+
+Ha la fiducia piena e nessun orario: l'ha scritta una persona, quindi non c'e'
+niente da verificare, e il minuto e' l'unico campo che qui non serve a nulla -
+il tetto e' del giorno. A distinguere due caffe' da 1,50 dello stesso giorno
+ci pensa `posizione`, com'e' gia' per la lista dell'app: senza, avrebbero lo
+stesso id e il secondo sparirebbe nel dedup.
 
 **Il saldo e' un fatto con una data, la stima e' un conto nostro.** Il saldo lo
 scrive la banca in cima all'estratto conto ed e' vero il giorno in cui l'ha
@@ -153,6 +172,7 @@ terminale, e nel registro sembrano due esercenti.
       budget.js      stipendio, uscite fisse, risparmio, tetto a recupero
       statistiche.js gruppi per esercente, ricorrenze, giorni della settimana
     src/ui/        DOM: nessuna logica, solo come si mostra
+      aggiungi.js    la spesa scritta a mano: l'unica sorgente senza un OCR dietro
     web/           manifest, service worker, icone
     test/          node --test
 

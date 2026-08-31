@@ -3,7 +3,10 @@
 // Qui sta la decisione che rende la v2 un innesto invece che una riscrittura.
 // Il registro canonico e' un file JSONL append-only, e ci si entra da una sola
 // porta: `merge`. Lo screenshot di oggi e l'ESP32 di domani sono due chiamanti
-// della stessa funzione, non due percorsi paralleli.
+// della stessa funzione, non due percorsi paralleli. Anche quello che scrivi tu
+// a mano passa di li'.
+
+import { inizioGiorno } from './tempo.js';
 
 /**
  * FNV-1a a 32 bit, applicato due volte con semi diversi per avere 64 bit di
@@ -126,6 +129,23 @@ export function periodoBanca(registro) {
 }
 
 /**
+ * Vero per cio' che, dentro il periodo dell'estratto conto, la banca conosce
+ * meglio di noi.
+ *
+ * Le letture automatiche si', quello che scrivi tu a mano no. Non e' una
+ * cortesia: una spesa in contanti nell'estratto conto non c'e' e non ci sara'
+ * mai - li' dentro c'e' il prelievo, non il caffe' - quindi cancellarla perche'
+ * "quel periodo lo copre la banca" vorrebbe dire buttare via l'unico posto in
+ * cui quel dato esiste. Vale lo stesso per l'accredito che ti ha girato un
+ * amico e per la spesa che l'app non ha mai visto passare.
+ *
+ * La regola generale si ripara da sola - se una lettura scartata era una spesa
+ * vera, il prossimo estratto conto la riporta dentro - ma qui non si
+ * riparerebbe: nessun import futuro rimettera' mai quella riga.
+ */
+const laRiscriveLaBanca = (t) => t.source !== 'banca' && t.source !== 'manuale';
+
+/**
  * L'unica porta d'ingresso del registro.
  *
  * Idempotente per costruzione: rifare lo screenshot senza aver svuotato il
@@ -146,6 +166,9 @@ export function periodoBanca(registro) {
  * gia', e non entra. Sbagliare da questa parte si ripara da solo - se davvero
  * era una spesa che la banca non aveva ancora contabilizzato, il prossimo
  * estratto conto la porta dentro, perche' quel periodo lo riscrive lui.
+ *
+ * L'unica cosa che quel periodo non tocca e' cio' che hai scritto tu: vedi
+ * `laRiscriveLaBanca`.
  */
 export function merge(registro, nuove) {
   const coperto = periodoBanca(registro);
@@ -169,7 +192,7 @@ export function merge(registro, nuove) {
       duplicate.push(t);
       continue;
     }
-    if (coperto && t.source !== 'banca'
+    if (coperto && laRiscriveLaBanca(t)
       && giornoDi(t) >= coperto.da && giornoDi(t) <= coperto.a) {
       coperte.push(t);
       continue;
@@ -288,6 +311,77 @@ export function elimina(registro, id) {
   return (registro ?? []).filter((t) => t.id !== id);
 }
 
+/**
+ * Il numero d'ordine libero per una spesa scritta a mano in un certo giorno.
+ *
+ * Senza, due caffe' da 1,50 € pagati in contanti lo stesso giorno avrebbero lo
+ * stesso id - stesso nome, stesso importo, stessa mezzanotte - e il secondo
+ * sparirebbe dentro il primo come duplicato. E' lo stesso mestiere che
+ * `numeraNelGiorno` fa per la lista dell'app, ma qui il numero si prende una
+ * riga alla volta, perche' una riga alla volta e' come arrivano.
+ */
+function prossimaPosizione(registro, giorno) {
+  let massima = -1;
+  for (const t of registro ?? []) {
+    if (giornoDi(t) === giorno) massima = Math.max(massima, t.posizione ?? 0);
+  }
+  return massima + 1;
+}
+
+/**
+ * Gli esercenti che hai gia' scritto a mano, dal piu' recente.
+ *
+ * Sono l'unica lista che ha senso proporre quando si scrive una spesa nuova: le
+ * altre sorgenti portano nomi che non riscriveresti mai a mano ("WWW.AMAZON.IT"),
+ * mentre il bar dei contanti si ripete. E serve piu' a scrivere lo stesso nome
+ * *identico* che a risparmiare i tocchi: "Bar Gocce" e "Bar gocce" nelle
+ * classifiche diventano due posti, e a quel punto nessuno dei due totali e' il
+ * totale di quel bar.
+ */
+export function esercentiAMano(registro, quanti = 6) {
+  const visti = [];
+  for (const t of registro ?? []) {
+    if (t.source !== 'manuale' || !t.merchant) continue;
+    if (!visti.includes(t.merchant)) visti.push(t.merchant);
+    if (visti.length >= quanti) break;
+  }
+  return visti;
+}
+
+/**
+ * Una spesa scritta a mano, pronta per `merge`. `null` se non lo e'.
+ *
+ * Non e' una sorgente di ripiego: e' l'unica che possa contenere i contanti, che
+ * nell'estratto conto non compaiono mai - li' dentro c'e' il prelievo - e le
+ * spese che l'app non ha mai visto passare. Per questo `source: 'manuale'` non
+ * e' solo un'etichetta: e' cio' che tiene la riga al riparo dalla riscrittura
+ * dell'estratto conto.
+ *
+ * Esce con la fiducia piena e senza orario. Non chiedere il minuto e' una
+ * scelta: e' l'unico campo che non serve a niente qui - il tetto e' del giorno,
+ * non dell'ora - e chiederlo vorrebbe dire un campo in piu' fra te e il caffe'
+ * che vuoi segnare. A distinguere due spese gemelle ci pensa `posizione`.
+ */
+export function transazioneAMano({ merchant, amount, giorno, fissa = false }, registro = []) {
+  const nome = String(merchant ?? '').trim().replace(/\s+/g, ' ');
+  const cifra = Math.round(Number(amount) * 100) / 100;
+  if (!nome || !Number.isFinite(cifra) || cifra <= 0) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(giorno ?? ''))) return null;
+
+  const campi = {
+    merchant: nome,
+    amount: cifra,
+    occurredAt: inizioGiorno(giorno),
+    timeKnown: false,
+    posizione: prossimaPosizione(registro, giorno),
+    entrata: false,
+    fissa: Boolean(fissa),
+    source: 'manuale',
+    confidence: 'high',
+  };
+  return { ...campi, id: idTransazione(campi) };
+}
+
 // --------------------------------------------------------------------------
 // Il backup completo.
 //
@@ -354,8 +448,16 @@ export function sostituisciPeriodo(registro, nuove, da, a) {
     return g >= da && g <= a;
   };
 
-  const rimosse = (registro ?? []).filter(dentro);
-  const tenute = (registro ?? []).filter((t) => !dentro(t));
+  // Da togliere e' cio' che sta nel periodo *ed e' riscrivibile*: quello che hai
+  // scritto tu resta dov'e'. Toglierlo sarebbe una cancellazione silenziosa di
+  // un dato che nessun import potra' rimettere. La distinzione vale solo qui:
+  // le righe che *arrivano* si filtrano per il solo periodo, altrimenti
+  // l'estratto conto - che per definizione non si riscrive da se' - non
+  // entrerebbe mai.
+  const daTogliere = (t) => dentro(t) && laRiscriveLaBanca(t);
+
+  const rimosse = (registro ?? []).filter(daTogliere);
+  const tenute = (registro ?? []).filter((t) => !daTogliere(t));
 
   // Anche dentro il periodo il dedup serve: reimportare due volte lo stesso
   // estratto conto non deve dipendere dall'aver cancellato prima.

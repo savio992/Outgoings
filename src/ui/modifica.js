@@ -14,8 +14,12 @@ import { isoDelGiorno } from '../domain/tempo.js';
  * Tiene aggiornato l'elenco di cio' che al prossimo import vale come uscita
  * fissa. Si ricorda il beneficiario *e la causale*: allo stesso nome vanno sia
  * il mutuo sia i pannolini, e ricordare solo il nome li marcherebbe entrambi.
+ *
+ * La usa anche il foglio delle spese a mano: e' la stessa promessa fatta dalla
+ * stessa casella, e due modi diversi di ricordarla vorrebbero dire una fissa
+ * che sparisce a seconda di dove l'hai marcata.
  */
-function ricordaFissa(config, nome, causale, fissa, salvaConfig) {
+export function ricordaFissa(config, nome, causale, fissa, salvaConfig) {
   const chiave = chiaveFissa(nome, causale);
   const attuali = (config?.fisse ?? []).filter((v) => (typeof v === 'string'
     ? chiaveFissa(v, null) !== chiave
