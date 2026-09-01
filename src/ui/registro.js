@@ -107,9 +107,9 @@ export function vistaRegistro(registro, alTocco, mese, vaiA) {
     ]);
   }
 
-  const mesi = mesiDelRegistro(registro);
+  const mesi = mesiDelRegistro(registro, oggiIso());
   // Se il mese scelto non esiste piu' - registro svuotato, import che riscrive -
-  // si torna al piu' recente invece di mostrare una schermata vuota inspiegabile.
+  // si torna a quello di oggi, che c'e' sempre.
   const corrente = mesi.includes(mese) ? mese : (mesi.includes(oggiIso().slice(0, 7)) ? oggiIso().slice(0, 7) : mesi[0]);
   const delMese = registro.filter((t) => meseDi(t) === corrente);
   const daVerificare = delMese.filter((t) => t.confidence === 'low').length;
@@ -133,6 +133,17 @@ export function vistaRegistro(registro, alTocco, mese, vaiA) {
   }
 
   const oggi = oggiIso();
+  // Il mese appena cominciato, o uno che l'estratto conto non copre: senza una
+  // riga che lo dica restano la barra e il riepilogo a zero, e sembra che le
+  // spese siano sparite invece che non esserci ancora.
+  if (!delMese.length) {
+    pezzi.push(el('div', { class: 'carta sezione' }, [
+      elencoVuoto(corrente === oggi.slice(0, 7)
+        ? 'Questo mese non c’e’ ancora niente.'
+        : 'Nessuna spesa in questo mese.'),
+    ]));
+  }
+
   for (const [giorno, spese] of perGiorno(delMese)) {
     const totale = spese.filter(eSpesaVariabile).reduce((s, t) => s + t.amount, 0);
     pezzi.push(el('div', { class: 'sezione' }, [

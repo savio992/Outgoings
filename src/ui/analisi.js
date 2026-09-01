@@ -420,7 +420,7 @@ export function vistaAnalisi(contesto) {
     ]);
   }
 
-  const elenco = mesiDelRegistro(registro);
+  const elenco = mesiDelRegistro(registro, oggi);
   const corrente = elenco.includes(mese) ? mese : elenco[0];
   const r = riepilogoAnalitico(registro, corrente, config);
   const apri = (g) => apriGruppo(g, { ...contesto, mese: corrente, gruppi: r.gruppi });
