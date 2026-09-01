@@ -95,6 +95,29 @@ export function isoDelGiorno(giorno, ora = 0, minuto = 0) {
 /** Mezzanotte italiana di un giorno: l'istante delle spese senza orario. */
 export const inizioGiorno = (giorno) => isoDelGiorno(giorno);
 
+/**
+ * Quanti millisecondi mancano dalla fine di un giorno, visto da un istante.
+ *
+ * Serve a puntare la sveglia che fa cambiare giorno all'app aperta. Ventiquattro
+ * ore meno l'ora attuale sarebbe sbagliato due notti l'anno: quella dell'ora
+ * legale dura 23 ore e quella del ritorno 25, e una sveglia puntata a mano
+ * suonerebbe un'ora prima o un'ora dopo il cambio di data. Qui la mezzanotte di
+ * domani la risolve `istanteLocale`, che l'offset lo sa gia'.
+ *
+ * Non e' mai negativo: un orologio di sistema spostato indietro punterebbe la
+ * sveglia nel passato, e un `setTimeout` negativo scatta subito, all'infinito.
+ *
+ * `adesso` non ha un valore di riposo: qui dentro l'ora non si legge mai da
+ * soli, altrimenti la funzione non si potrebbe testare sulle due notti che
+ * contano.
+ */
+export function mancaAllaMezzanotte(giorno, adesso) {
+  const domani = new Date(Date.parse(String(giorno) + 'T12:00:00Z') + 86400000)
+    .toISOString().slice(0, 10);
+  const [a, m, g] = domani.split('-').map(Number);
+  return Math.max(0, istanteLocale(a, m, g, 0, 0) - adesso);
+}
+
 const RE_ORA = /\b(\d{1,2})([:.])(\d{2})\b/;
 const RE_IERI = /\bieri\b/i;
 
