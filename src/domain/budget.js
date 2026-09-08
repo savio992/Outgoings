@@ -110,6 +110,19 @@ export function statoGiorno(config, registro, giorno) {
     soglia,
     residuo: centesimi(soglia - spesoOggi),
     superata: spesoOggi > soglia && soglia > 0,
+    // Tutto quello che c'e' da qui a fine mese, oggi compreso: e' il numeratore
+    // del tetto, ed e' esattamente `soglia * giorniRestanti`. Scriverlo accanto
+    // al tetto e' l'unico modo di far vedere da dove quel numero esce, invece
+    // di lasciarlo comparire come una cifra decisa da qualcuno.
+    restoDaOggi: centesimi(disponibile - spesoPrima),
+    // Il tetto che ci sara' domani se la giornata chiude cosi'. E' il recupero
+    // detto in anticipo: spendere adesso non toglie soldi a un mese lontano,
+    // toglie a domani, e vederlo prima e' l'unica cosa che puo' cambiare la
+    // decisione. L'ultimo giorno del mese non ha un domani da mostrare, e li'
+    // il campo e' `null` invece di un numero inventato.
+    sogliaDomani: restanti > 1
+      ? centesimi(Math.max(0, (disponibile - spesoPrima - spesoOggi) / (restanti - 1)))
+      : null,
     risparmio: obiettivo,
     // Quanto sarebbe messo da parte se il mese finisse adesso: e' l'obiettivo
     // piu' cio' che del tetto e' avanzato. Sopra l'obiettivo si e' risparmiato
@@ -153,6 +166,31 @@ export function ultimiGiorni(registro, giorno, quanti = 7) {
     fuori.push({ giorno: g, totale: sommaTra(registro, g, g) });
   }
   return fuori;
+}
+
+/**
+ * La settimana giorno per giorno, con accanto il tetto che ognuno aveva.
+ *
+ * `ultimiGiorni` dice quanto si e' speso; qui c'e' anche quanto si sarebbe
+ * potuto spendere *quel* giorno. Non e' il tetto di oggi ripetuto sette volte:
+ * `statoGiorno` divide per i giorni che restavano allora cio' che era avanzato
+ * allora, quindi ogni giorno ha il suo. Ed e' il punto - disegnati uno accanto
+ * all'altro, i sette tetti sono il recupero reso visibile: sforare non brucia
+ * il mese, abbassa il giorno dopo, e la riga scende di uno scalino.
+ *
+ * Il tetto dei giorni passati lo ricalcola con lo stipendio e le uscite fisse
+ * di adesso: sui mesi gia' chiusi e' un'ipotesi, come in `risparmioDeiMesi`.
+ */
+export function strisciaSettimana(config, registro, giorno, quanti = 7) {
+  return ultimiGiorni(registro, giorno, quanti).map((g) => {
+    const { soglia } = statoGiorno(config, registro, g.giorno);
+    return {
+      ...g,
+      soglia,
+      residuo: centesimi(soglia - g.totale),
+      oltre: soglia > 0 && g.totale > soglia,
+    };
+  });
 }
 
 /**

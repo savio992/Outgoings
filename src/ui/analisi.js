@@ -208,19 +208,22 @@ function quando(registro, mese) {
 
   return el('div', { class: 'carta sezione settimana' }, [
     titolo('Quando spendi'),
+    // Stessa impalcatura della striscia in Oggi - sigla dentro la colonna - cosi'
+    // i due grafici dell'app restano allineati anche quando cambia il tipo di
+    // carattere: due file separate da tenere alla stessa larghezza scivolano.
     el('div', { class: 'grafico' }, giorni.map((g, i) => el('div', {
       class: 'gambo' + (g === caro ? ' oggi' : ''),
-      title: `${g.nome}: ${euro(g.media)} in media su ${g.giorni}`,
+      'aria-label': `${g.nome}: ${euro(g.media)} in media su ${g.giorni}`,
     }, [
-      el('span', {
-        class: 'riempimento',
-        style: `height:${(g.media > 0 ? Math.max(4, (g.media / cima) * 100) : 0).toFixed(1)}%;`
-          + `transition-delay:${i * 45}ms`,
-      }),
+      el('span', { class: 'asta' }, [
+        el('span', {
+          class: 'riempimento',
+          style: `height:${(g.media > 0 ? Math.max(4, (g.media / cima) * 100) : 0).toFixed(1)}%;`
+            + `transition-delay:${i * 45}ms`,
+        }),
+      ]),
+      el('span', { class: 'sigla' }, [el('span', { testo: g.sigla })]),
     ]))),
-    el('div', { class: 'sigle' }, giorni.map((g) => el('span', {
-      class: g === caro ? 'oggi' : null, testo: g.sigla,
-    }))),
     el('div', { class: 'nota', testo:
       `In media ${articolo(caro)} escono ${euro(caro.media)}, ${articolo(leggero)} ${euro(leggero.media)}${pesa}` }),
   ]);

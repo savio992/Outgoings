@@ -147,51 +147,82 @@ body {
 
 .settimana { padding-top: 18px; }
 
-.grafico {
-  position: relative;
-  display: flex; gap: 7px; align-items: flex-end;
-  height: 104px; padding: 0 18px;
+.spiega {
+  font-size: 12.5px; line-height: 1.4;
+  opacity: .72;
+  margin-top: 3px;
 }
+
 /* Nessuna traccia dietro le barre: un rettangolo grigio a tutta altezza si
    legge come una barra vuota, e sette barre vuote dicono il contrario di quello
    che il disegno vuole dire. */
+.grafico {
+  display: flex; gap: 7px;
+  padding: 0 18px;
+}
+/* La colonna intera e' il bersaglio del dito, sigla compresa: la barra da sola
+   e' larga poco e il giorno senza spese e' alto zero. */
 .gambo {
-  flex: 1; height: 100%;
+  flex: 1;
+  display: flex; flex-direction: column;
+  padding: 0; border: 0; background: none; font: inherit; color: inherit;
+}
+button.gambo { cursor: pointer; }
+.asta {
+  position: relative;
+  height: 104px;
   display: flex; align-items: flex-end;
 }
-.gambo .riempimento {
+.riempimento {
   display: block; width: 100%; border-radius: 8px;
   background: color-mix(in srgb, var(--accento) 34%, transparent);
   transition: height .65s cubic-bezier(.22, 1, .36, 1);
 }
-.gambo .riempimento.alto { background: var(--allarme); }
 .gambo.oggi .riempimento { background: var(--accento); }
+/* Il rosso batte anche oggi: una giornata gia' oltre il suo tetto e' proprio
+   quella che il colore deve dire, e dirlo di ieri e non di oggi sarebbe il
+   contrario di cio' che serve. */
+.gambo .riempimento.alto { background: var(--allarme); }
 
-/* Il tetto attraversa il disegno: e' il confronto che rende leggibili le barre,
-   che da sole direbbero solo "piu' alta di quell'altra". */
-.tetto {
-  position: absolute; left: 18px; right: 18px;
+/* Il tetto e' una tacca per giorno e non una riga sola che attraversa tutto:
+   e' proprio il fatto che ogni giorno ne abbia uno diverso la cosa da vedere. */
+.tacca {
+  position: absolute; left: 0; right: 0;
   border-top: 1.5px dashed var(--testo-fioco);
-  opacity: .55;
+  opacity: .6;
   pointer-events: none;
 }
-.tetto span {
-  position: absolute; right: 0; top: -15px;
-  font-size: 10.5px; font-weight: 600;
-  color: var(--testo-fioco);
-  background: var(--carta); padding: 0 4px;
-}
+/* Sopra la barra la tacca dev'essere chiara: sul rosso pieno un grigio si perde,
+   e i giorni sforati sono quelli in cui guardarla serve davvero. */
+.riempimento.alto + .tacca { border-top-color: rgba(255, 255, 255, .85); opacity: .9; }
 
-.sigle {
-  display: flex; gap: 7px;
-  padding: 7px 18px 14px;
-}
-.sigle span {
-  flex: 1; text-align: center;
+.sigla {
+  padding: 7px 0 14px;
+  text-align: center;
   font-size: 11px; font-weight: 600;
   color: var(--testo-fioco);
 }
-.sigle span.oggi { color: var(--accento); }
+.sigla span {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 21px; height: 21px; border-radius: 999px;
+}
+.gambo.oggi .sigla { color: var(--accento); }
+/* La sigla accesa e non la barra: il giorno scelto puo' essere un giorno senza
+   spese, e li' non c'e' nessuna barra da accendere. */
+.gambo.scelto .sigla span { background: var(--accento); color: var(--carta); }
+.gambo.scelto .riempimento {
+  box-shadow: 0 0 0 2px var(--carta), 0 0 0 3.5px var(--accento);
+}
+.gambo:active .asta { opacity: .6; }
+
+.scelta { padding-bottom: 12px; }
+.scelta .giorno { padding-top: 0; }
+.scelta .nota {
+  padding: 0 18px;
+  font-size: 12.5px;
+  color: var(--testo-tenue);
+}
+.scelta .nota.oltre { color: var(--allarme); }
 
 .spento { padding: 30px 22px; text-align: center; color: var(--testo-tenue); font-size: 15px; }
 
@@ -553,5 +584,5 @@ body {
 .pila > * + * { margin-top: 10px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .barra span, .gambo .riempimento, .quota, .foglio, .velo { transition: none; animation: none; }
+  .barra span, .riempimento, .quota, .foglio, .velo { transition: none; animation: none; }
 }

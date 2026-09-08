@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { statoGiorno, giorniDelMese, disponibileDelMese, totaleUsciteFisse, mediaGiornaliera, ultimiGiorni, risparmioDeiMesi, saldoStimato } from '../src/domain/budget.js';
+import { statoGiorno, giorniDelMese, disponibileDelMese, totaleUsciteFisse, mediaGiornaliera, ultimiGiorni, strisciaSettimana, risparmioDeiMesi, saldoStimato } from '../src/domain/budget.js';
 
 const CONFIG = {
   stipendio: 2000,
@@ -129,6 +129,48 @@ test('gli ultimi giorni escono in ordine, dal piu' + "'" + ' vecchio', () => {
   assert.equal(settimana[6].totale, 10);
   assert.equal(settimana[4].totale, 19);
   assert.equal(settimana[5].totale, 0);
+});
+
+test('ogni giorno della settimana porta il tetto che aveva lui', () => {
+  // Duecento euro il 24, quando il tetto era 125: il giorno dopo il tetto e'
+  // sceso da solo. Sono queste sette cifre diverse a far vedere il recupero -
+  // un tetto solo, quello di oggi, ripetuto sette volte non lo direbbe.
+  const registro = [spesa('2026-08-24', 200)];
+  const settimana = strisciaSettimana(CONFIG, registro, '2026-08-26');
+  const del = (g) => settimana.find((x) => x.giorno === g);
+
+  assert.equal(settimana.length, 7);
+  assert.equal(del('2026-08-24').soglia, 125);
+  assert.equal(del('2026-08-24').totale, 200);
+  assert.equal(del('2026-08-24').residuo, -75);
+  assert.equal(del('2026-08-24').oltre, true);
+
+  assert.equal(del('2026-08-25').soglia, 114.29);
+  assert.equal(del('2026-08-25').oltre, false);
+  assert.ok(new Set(settimana.map((g) => g.soglia)).size > 1);
+});
+
+test('senza budget la settimana non ha tetti e non ha sforamenti', () => {
+  const settimana = strisciaSettimana({}, [spesa('2026-08-26', 40)], '2026-08-26');
+  assert.equal(settimana[6].soglia, 0);
+  assert.equal(settimana[6].totale, 40);
+  assert.equal(settimana[6].oltre, false);
+});
+
+test('il tetto di domani dice quanto costa la spesa di adesso', () => {
+  const intatto = statoGiorno(CONFIG, [], '2026-08-30');
+  assert.equal(intatto.giorniRestanti, 2);
+  assert.equal(intatto.soglia, 500);
+  // Il numeratore del tetto, cioe' da dove viene quel 500.
+  assert.equal(intatto.restoDaOggi, 1000);
+  assert.equal(intatto.sogliaDomani, 1000);
+
+  const speso = statoGiorno(CONFIG, [spesa('2026-08-30', 300)], '2026-08-30');
+  assert.equal(speso.sogliaDomani, 700);
+
+  // L'ultimo giorno del mese un domani non ce l'ha: meglio niente che un numero
+  // inventato.
+  assert.equal(statoGiorno(CONFIG, [], '2026-08-31').sogliaDomani, null);
 });
 
 test('gli ultimi giorni scavalcano il cambio di mese', () => {
