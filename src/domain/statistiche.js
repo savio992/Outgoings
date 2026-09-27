@@ -300,3 +300,81 @@ export function andamentoMesi(registro, oggi) {
 
   return { mesi, confrontabili: mesi.filter((m) => m.completo && !m.inCorso).length };
 }
+
+/**
+ * La categoria di una spesa sola, con la stessa regola dei gruppi.
+ *
+ * Le categorie stanno sull'esercente e non sulla transazione: si scelgono una
+ * volta, e da li' valgono per tutto cio' che va allo stesso posto. Qui si
+ * risponde alla domanda al contrario - questa riga, che categoria ha - e la
+ * risposta deve essere quella di `raggruppa`, o la stessa spesa sarebbe
+ * "Spesa" nell'elenco e "Senza categoria" nella classifica.
+ *
+ * Si cerca prima sulla chiave del gruppo (il nome dopo gli alias), poi sulla
+ * grafia grezza, poi sulle altre grafie unite allo stesso nome: dopo un'unione
+ * la categoria puo' essere rimasta attaccata al nome di prima.
+ */
+export function categoriaDi(t, config = {}) {
+  const alias = config.alias ?? {};
+  const categorie = config.categorie ?? {};
+  const grezza = impronta(t?.merchant);
+  const chiave = chiaveDiGruppo(t?.merchant, alias);
+  if (categorie[chiave]) return categorie[chiave];
+  if (categorie[grezza]) return categorie[grezza];
+  const unite = Object.keys(alias)
+    .filter((k) => impronta(alias[k]) === chiave)
+    .sort();
+  return unite.map((k) => categorie[k]).find(Boolean) ?? null;
+}
+
+/** La chiave sotto cui `raggruppa` conta un esercente: e' li' che sta la categoria. */
+export function chiaveDiGruppo(nome, alias = {}) {
+  const grezza = impronta(nome);
+  return impronta(alias[grezza] ?? nome) || grezza;
+}
+
+/**
+ * Entrate e uscite mese per mese: quanto e' entrato, quanto e' uscito, quanto
+ * e' rimasto.
+ *
+ * E' la domanda che viene prima del tetto: il tetto dice come spendere quello
+ * che c'e', questo dice se quello che c'e' basta. Le uscite fisse e quelle di
+ * tutti i giorni restano separate anche qui, perche' si riducono in due modi
+ * diversi - una con una telefonata, l'altra con una decisione al giorno.
+ *
+ * Il tasso di risparmio esiste solo se nel mese e' entrato qualcosa: senza
+ * entrate non e' zero, e' una divisione che non si puo' fare. E un mese che il
+ * registro vede a meta' esce segnato, come in `andamentoMesi`, perche' le sue
+ * entrate possono mancare anche quando le spese ci sono.
+ */
+export function flussoDiCassa(registro, oggi) {
+  const meseOggi = String(oggi).slice(0, 7);
+  const perMese = new Map();
+  for (const t of registro ?? []) {
+    const m = meseDi(t);
+    if (m > meseOggi) continue;
+    const c = perMese.get(m) ?? { entrate: 0, fisse: 0, variabili: 0 };
+    if (t.entrata) c.entrate += t.amount;
+    else if (t.fissa) c.fisse += t.amount;
+    else c.variabili += t.amount;
+    perMese.set(m, c);
+  }
+
+  return [...perMese.keys()].sort().map((mese) => {
+    const c = perMese.get(mese);
+    const uscite = c.fisse + c.variabili;
+    const netto = c.entrate - uscite;
+    const copertura = coperturaMese(registro, mese);
+    return {
+      mese,
+      entrate: centesimi(c.entrate),
+      fisse: centesimi(c.fisse),
+      variabili: centesimi(c.variabili),
+      uscite: centesimi(uscite),
+      netto: centesimi(netto),
+      tasso: c.entrate > 0 ? Math.round((netto / c.entrate) * 1000) / 10 : null,
+      inCorso: mese === meseOggi,
+      completo: copertura.completo || (mese === meseOggi && copertura.da === `${mese}-01`),
+    };
+  });
+}

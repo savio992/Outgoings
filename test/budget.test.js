@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { statoGiorno, giorniDelMese, disponibileDelMese, totaleUsciteFisse, mediaGiornaliera, ultimiGiorni, strisciaSettimana, risparmioDeiMesi, saldoStimato } from '../src/domain/budget.js';
+import {
+  statoGiorno, giorniDelMese, disponibileDelMese, totaleUsciteFisse, mediaGiornaliera, ultimiGiorni,
+  strisciaSettimana, risparmioDeiMesi, saldoStimato, andamentoDelMese, ripartizioneMese, budgetCategorie,
+} from '../src/domain/budget.js';
 
 const CONFIG = {
   stipendio: 2000,
@@ -319,4 +322,99 @@ test('del giorno del saldo contano solo le spese che la banca non aveva', () => 
 test('un saldo negativo resta negativo', () => {
   const rosso = { ...CONFIG, saldo: { importo: -120.4, al: '2026-08-27' } };
   assert.equal(saldoStimato(rosso, [], '2026-08-27').stimato, -120.4);
+});
+
+// --- andamento del mese, ripartizione, limiti per categoria ---------------
+
+const vero = (giorno, merchant, amount, extra = {}) => ({
+  id: `${giorno}-${merchant}-${amount}`, merchant, amount,
+  occurredAt: `${giorno}T09:00:00+02:00`, source: 'banca', confidence: 'high', ...extra,
+});
+
+test('l' + "'" + 'andamento sale a somme crescenti, oggi compreso', () => {
+  const a = andamentoDelMese(CONFIG, [
+    vero('2026-09-01', 'A', 10), vero('2026-09-03', 'B', 5), vero('2026-09-04', 'C', 99),
+  ], '2026-09-03');
+  assert.deepEqual(a.questo, [10, 10, 15]);
+  assert.equal(a.giorni, 30);
+  assert.equal(a.ritmo, 100); // 1000 disponibili, 3 giorni su 30
+});
+
+test('il mese scorso si confronta allo stesso giorno, solo se e' + "'" + ' intero', () => {
+  const agosto = [vero('2026-07-31', 'prima', 1), vero('2026-08-02', 'A', 30), vero('2026-08-20', 'B', 200)];
+  const a = andamentoDelMese(CONFIG, [...agosto, vero('2026-09-01', 'C', 20)], '2026-09-03');
+  assert.equal(a.precedenteCompleto, true);
+  assert.equal(a.precedente.length, 31);
+  assert.deepEqual(a.confronto, { questo: 20, scorso: 30, differenza: -10 });
+
+  const mezzo = andamentoDelMese(CONFIG, [vero('2026-08-15', 'A', 30), vero('2026-09-01', 'C', 20)], '2026-09-03');
+  assert.equal(mezzo.precedenteCompleto, false);
+  assert.equal(mezzo.confronto, null);
+});
+
+test('il 31 si confronta con l' + "'" + 'ultimo giorno di un mese piu' + "'" + ' corto', () => {
+  const r = [vero('2026-08-31', 'X', 1), vero('2026-09-30', 'A', 40), vero('2026-10-31', 'B', 5)];
+  const a = andamentoDelMese(CONFIG, r, '2026-10-31');
+  assert.equal(a.confronto.scorso, 40);
+});
+
+test('senza budget non c' + "'" + 'e' + "'" + ' un ritmo da disegnare', () => {
+  assert.equal(andamentoDelMese({}, [], '2026-09-03').ritmo, null);
+});
+
+test('la ripartizione somma allo stipendio finche' + "'" + ' il mese regge', () => {
+  const r = ripartizioneMese({ ...CONFIG, risparmio: 200 }, [vero('2026-09-02', 'A', 100)], '2026-09-03');
+  assert.deepEqual(r.voci.map((v) => [v.chiave, v.importo]), [
+    ['fisse', 1000], ['risparmio', 200], ['speso', 100], ['resta', 700],
+  ]);
+  assert.equal(r.totale, 2000);
+  assert.equal(r.oltre, 0);
+});
+
+test('lo sfondamento si mangia prima il risparmio, poi va oltre lo stipendio', () => {
+  const config = { ...CONFIG, risparmio: 200 };
+  const poco = ripartizioneMese(config, [vero('2026-09-02', 'A', 900)], '2026-09-03');
+  assert.deepEqual(poco.voci.map((v) => v.importo), [1000, 100, 900, 0]);
+  assert.equal(poco.eroso, 100);
+  assert.equal(poco.oltre, 0);
+
+  const tanto = ripartizioneMese(config, [vero('2026-09-02', 'A', 1300)], '2026-09-03');
+  assert.deepEqual(tanto.voci.map((v) => v.importo), [1000, 0, 1300, 0]);
+  assert.equal(tanto.eroso, 200);
+  assert.equal(tanto.oltre, 300);
+});
+
+test('un limite di categoria dice quanto resta e quanto al giorno', () => {
+  const config = { ...CONFIG, categorie: { bar: 'Bar' }, limiti: { Bar: 60 } };
+  const b = budgetCategorie(config, [vero('2026-09-01', 'Bar', 12), vero('2026-09-02', 'BAR', 8)], '2026-09', '2026-09-11');
+  assert.equal(b.righe.length, 1);
+  const bar = b.righe[0];
+  assert.equal(bar.speso, 20);
+  assert.equal(bar.resto, 40);
+  assert.equal(bar.alGiorno, 2); // 40 euro su 20 giorni, oggi compreso
+  assert.equal(bar.stato, 'sereno');
+  assert.equal(b.assegnato, 60);
+  assert.equal(b.daAssegnare, 940);
+});
+
+test('spendere piu' + "'" + ' in fretta dei giorni e' + "'" + ' attento, oltre il limite e' + "'" + ' oltre', () => {
+  const config = { ...CONFIG, categorie: { bar: 'Bar' }, limiti: { Bar: 100 } };
+  // Al 3 del mese e' passato un decimo: la meta' del limite e' troppo presto.
+  assert.equal(budgetCategorie(config, [vero('2026-09-01', 'Bar', 50)], '2026-09', '2026-09-03').righe[0].stato, 'attento');
+  assert.equal(budgetCategorie(config, [vero('2026-09-01', 'Bar', 120)], '2026-09', '2026-09-03').righe[0].stato, 'oltre');
+});
+
+test('un mese chiuso non ha un al giorno, e le categorie senza limite restano visibili', () => {
+  const config = { ...CONFIG, categorie: { bar: 'Bar', famila: 'Spesa' }, limiti: { Bar: 60, Vuota: 0 } };
+  const b = budgetCategorie(config, [vero('2026-08-01', 'Bar', 12), vero('2026-08-02', 'FAMILA', 80), vero('2026-08-03', 'Edicola', 2)], '2026-08', '2026-09-11');
+  assert.equal(b.righe[0].alGiorno, null);
+  assert.deepEqual(b.senzaLimite, [{ categoria: 'Spesa', speso: 80, quante: 1 }]);
+  assert.equal(b.senzaCategoria.totale, 2);
+});
+
+test('i limiti non toccano il tetto giornaliero', () => {
+  const r = [vero('2026-09-01', 'Bar', 90)];
+  const senza = statoGiorno({ ...CONFIG, categorie: { bar: 'Bar' } }, r, '2026-09-02');
+  const con = statoGiorno({ ...CONFIG, categorie: { bar: 'Bar' }, limiti: { Bar: 30 } }, r, '2026-09-02');
+  assert.equal(con.soglia, senza.soglia);
 });

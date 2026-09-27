@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   raggruppa, perRicorrenza, unaTantum, perCategoria, perGiornoSettimana,
   coperturaMese, riepilogoAnalitico, andamentoMesi, nomeDiGruppo, indiceGiorno,
+  categoriaDi, chiaveDiGruppo, flussoDiCassa,
 } from '../src/domain/statistiche.js';
 
 let n = 0;
@@ -180,4 +181,42 @@ test('il giorno piu' + "'" + ' caro si porta dietro la spesa che lo ha reso tale
   assert.equal(sabato.maggiore.amount, 900);
   assert.equal(g[0].maggiore.amount, 1.2); // il lunedi' c'e' solo il caffe'
   assert.equal(g[6].maggiore, null); // la domenica ci sono solo una fissa e un accredito
+});
+
+test('la categoria di una spesa e' + "'" + ' quella del suo gruppo', () => {
+  const config = { categorie: { [chiaveDiGruppo('Gocce di caffe')]: 'Bar' } };
+  assert.equal(categoriaDi({ merchant: 'GOCCE DI CAFFE' }, config), 'Bar');
+  assert.equal(categoriaDi({ merchant: 'Edicola' }, config), null);
+});
+
+test('dopo un' + "'" + 'unione la categoria segue il gruppo, come nella classifica', () => {
+  // La categoria era stata messa su "FAMILA MEGAGEST", poi unito sotto "Famila".
+  const config = {
+    alias: { [chiaveDiGruppo('FAMILA MEGAGEST')]: 'Famila' },
+    categorie: { [chiaveDiGruppo('FAMILA MEGAGEST')]: 'Spesa' },
+  };
+  assert.equal(categoriaDi({ merchant: 'Famila' }, config), 'Spesa');
+  assert.equal(categoriaDi({ merchant: 'FAMILA MEGAGEST' }, config), 'Spesa');
+  const registro = [spesa('2026-08-01', 'Famila', 10), spesa('2026-08-02', 'FAMILA MEGAGEST', 10)];
+  assert.equal(raggruppa(registro, '2026-08', config)[0].categoria, 'Spesa');
+});
+
+test('il flusso di cassa tiene fisse e variabili separate, e il tasso solo con entrate', () => {
+  const registro = [
+    spesa('2026-07-31', 'prima', 1),
+    spesa('2026-08-01', 'Bar', 100),
+    spesa('2026-08-05', 'ENEL', 80, { fissa: true }),
+    spesa('2026-08-27', 'STIPENDIO', 2000, { entrata: true }),
+    spesa('2026-09-02', 'Bar', 10),
+  ];
+  const f = flussoDiCassa(registro, '2026-09-10');
+  const agosto = f.find((m) => m.mese === '2026-08');
+  assert.deepEqual(
+    { e: agosto.entrate, f: agosto.fisse, v: agosto.variabili, u: agosto.uscite, n: agosto.netto, t: agosto.tasso, c: agosto.completo },
+    { e: 2000, f: 80, v: 100, u: 180, n: 1820, t: 91, c: true },
+  );
+  const settembre = f.find((m) => m.mese === '2026-09');
+  assert.equal(settembre.tasso, null);
+  assert.equal(settembre.inCorso, true);
+  assert.equal(f.find((m) => m.mese === '2026-07').completo, false);
 });
