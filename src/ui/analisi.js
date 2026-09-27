@@ -139,6 +139,9 @@ function dove(r, config, apri, ridisegna) {
     r.fisse.quante ? el('div', { class: 'nota fioco', testo:
       `Fuori da questi conti ci sono ${euro(r.fisse.totale)} di uscite fisse `
       + `(${r.fisse.quante}): quelle si decidono in Budget, non qui.` }) : null,
+    r.nonMensili.quante ? el('div', { class: 'nota fioco', testo:
+      `E ${euro(r.nonMensili.totale)} di spese non mensili (${r.nonMensili.quante}), `
+      + 'pagate con i soldi messi da parte nei mesi prima.' }) : null,
   ]);
 }
 

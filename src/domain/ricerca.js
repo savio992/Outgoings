@@ -48,9 +48,10 @@ function importoCercato(testo) {
 /** I filtri, con le stesse definizioni che il resto dell'app usa per contare. */
 export const FILTRI = {
   tutti: () => true,
-  spese: (t) => !t.entrata && !t.fissa,
+  spese: (t) => !t.entrata && !t.fissa && !t.fondo,
   entrate: (t) => Boolean(t.entrata),
   fisse: (t) => Boolean(t.fissa) && !t.entrata,
+  nonMensili: (t) => Boolean(t.fondo) && !t.fissa && !t.entrata,
   verificare: (t) => t.confidence === 'low',
   mano: (t) => t.source === 'manuale',
 };

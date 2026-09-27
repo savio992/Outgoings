@@ -246,15 +246,19 @@ test('spostarsi di un mese scavalca l' + "'" + ' anno', () => {
   assert.equal(meseSpostato('2026-12', 1), '2027-01');
 });
 
-test('il riepilogo del mese tiene separate spese, fisse ed entrate', () => {
+test('il riepilogo del mese tiene separate spese, fisse, non mensili ed entrate', () => {
   // Sommarle darebbe un numero che non risponde a nessuna domanda.
   const registro = [
     { id: 'a', merchant: 'Bar', amount: 4, occurredAt: '2026-08-26T00:00:00+02:00' },
     { id: 'b', merchant: 'Affitto', amount: 700, fissa: true, occurredAt: '2026-08-05T00:00:00+02:00' },
     { id: 'c', merchant: 'Stipendio', amount: 1850, entrata: true, occurredAt: '2026-08-01T00:00:00+02:00' },
     { id: 'd', merchant: 'Bar', amount: 9, occurredAt: '2026-07-26T00:00:00+02:00' },
+    { id: 'e', merchant: 'Assicurazione', amount: 480, fondo: 'f1', occurredAt: '2026-08-12T00:00:00+02:00' },
   ];
-  assert.deepEqual(riepilogoMese(registro, '2026-08'), { mese: '2026-08', spese: 4, fisse: 700, entrate: 1850, quante: 3 });
-  assert.deepEqual(riepilogoMese(registro, '2026-07'), { mese: '2026-07', spese: 9, fisse: 0, entrate: 0, quante: 1 });
-  assert.deepEqual(riepilogoMese(registro, '2026-06'), { mese: '2026-06', spese: 0, fisse: 0, entrate: 0, quante: 0 });
+  assert.deepEqual(riepilogoMese(registro, '2026-08'),
+    { mese: '2026-08', spese: 4, fisse: 700, nonMensili: 480, entrate: 1850, quante: 4 });
+  assert.deepEqual(riepilogoMese(registro, '2026-07'),
+    { mese: '2026-07', spese: 9, fisse: 0, nonMensili: 0, entrate: 0, quante: 1 });
+  assert.deepEqual(riepilogoMese(registro, '2026-06'),
+    { mese: '2026-06', spese: 0, fisse: 0, nonMensili: 0, entrate: 0, quante: 0 });
 });

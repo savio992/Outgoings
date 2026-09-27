@@ -172,6 +172,28 @@ pesa, perche' poteva essere l'ultima rata. Una fissa che non si vede da piu' di
 un mese esce dalla lista. Lo stesso vale per i confronti: il mese scorso si
 mette accanto a questo solo se il registro lo copre intero.
 
+**Le spese non mensili si pagano da un fondo, e il fondo lo sceglie l'utente.**
+L'assicurazione, il bollo, i regali hanno un fondo ciascuno (`fondi.js`): una
+quota esce ogni mese dal disponibile prima del tetto, come il risparmio, e la
+quota e' quello che manca alla prossima scadenza diviso i mesi che mancano - lo
+stesso recupero del tetto giornaliero, un piano piu' in alto. La spesa pagata
+dal fondo sta fuori dal tetto (`eSpesaVariabile`), ma a dirlo e' l'utente,
+sulla riga: abbinarla da sola vorrebbe dire indovinare, e lo stesso nome puo'
+essere l'assicurazione e il rimborso del sinistro. I pagamenti saldano le
+scadenze dalla piu' vecchia, cosi' anticipo, ritardo e pagamenti a pezzi
+tornano senza regole in piu'. Un fondo che si cancella si porta via il segno
+dalle sue spese (`staccaFondo`): fuori dal tetto e senza fondo una spesa non
+starebbe da nessuna parte. Il segno sta sulla riga come `fissa`, quindi una
+lettura da screenshot che l'estratto conto riscrive lo perde: la spesa torna
+nel tetto e si vede, che e' l'errore giusto da fare.
+
+**La coda da rivedere contiene solo cio' che sposta i numeri.** Letture
+incerte, spese di un fondo che non c'e' piu', fondi scaduti senza pagamento,
+esercenti senza categoria (`revisione.js`). Non si conferma ogni spesa: quasi
+tutte vengono dall'estratto conto e sono gia' giuste, e un "ok" da toccare a
+ripetizione insegna a non guardare. Solo la categoria si puo' lasciare com'e'
+(`restaSenza`): "Senza categoria" e' un posto legittimo.
+
 **Il gateway non e' l'esercente.** "SumUp *Gocce di caffe" e' il bar sotto casa.
 Senza togliere il prefisso lo stesso posto compare con due nomi a seconda del
 terminale, e nel registro sembrano due esercenti.
@@ -186,14 +208,17 @@ terminale, e nel registro sembrano due esercenti.
       banca.js       estratto conto: la sorgente piu' precisa delle tre
       xlsx.js        legge il .xlsx della banca: ZIP, XML, seriali di Excel
       export.js      interfaccia Destinazione, oggi solo Actual Budget
-      budget.js      stipendio, uscite fisse, risparmio, tetto a recupero,
+      budget.js      stipendio, uscite fisse, risparmio, fondi, tetto a recupero,
                      andamento del mese, piano dello stipendio, limiti per categoria
       statistiche.js gruppi per esercente, categorie, flussi di cassa
       ricorrenti.js  le uscite fisse del mese: pagate, in arrivo, attese
       ricerca.js     trovare una spesa senza sapere in che mese
+      fondi.js       le spese non mensili: quota del mese, scadenze, pagamenti
+      revisione.js   la coda di cio' che aspetta un tocco
     src/ui/        DOM: nessuna logica, solo come si mostra
       aggiungi.js    la spesa scritta a mano: l'unica sorgente senza un OCR dietro
       categorie.js   la scelta della categoria, condivisa dai due fogli
+      revisione.js   la coda da rivedere, in cima a Oggi
     web/           manifest, service worker, icone
     test/          node --test
 
@@ -218,7 +243,10 @@ bordo, un arancio solo per il marchio e per cio' che si tocca, lo stato detto
 da barre di avanzamento e pastiglie invece che da blocchi dipinti. I token
 stanno in cima a `src/styles.css`; le arance sono tre (`--accento` per le
 barre, `--accento-pieno` per i tasti, `--accento-testo` per il testo) perche'
-quella del marchio col bianco sopra non arriva al contrasto minimo.
+quella del marchio col bianco sopra non arriva al contrasto minimo. Il blu
+(`--fondi`) e' solo dei fondi: nel piano del mese sta fra il verde del
+risparmio e l'arancio delle spese, e resta distinto da tutti e due anche per
+chi non distingue rosso e verde.
 
 ## Il service worker
 
