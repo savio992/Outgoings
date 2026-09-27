@@ -23,6 +23,7 @@ import { giornoDi } from '../domain/registro.js';
 import { categoriaDi } from '../domain/statistiche.js';
 import { ricorrenti } from '../domain/ricorrenti.js';
 import { spesa, elencoVuoto } from './registro.js';
+import { codaRevisione } from './revisione.js';
 
 /**
  * Il giorno che la striscia sta mostrando, di solito oggi.
@@ -80,7 +81,9 @@ function testata(s) {
 
   const sotto = !s.attiva
     ? [el('span', { testo: s.troppoRisparmio
-      ? `Fra uscite fisse e ${euro(s.risparmio)} da mettere da parte non resta niente per i giorni`
+      ? (s.fondi
+        ? `Fra uscite fisse, ${euro(s.risparmio)} da mettere da parte e ${euro(s.fondi)} di spese non mensili`
+        : `Fra uscite fisse e ${euro(s.risparmio)} da mettere da parte`) + ' non resta niente per i giorni'
       : 'Imposta stipendio e uscite fisse in Budget per avere un tetto giornaliero' })]
     : sfondato
       ? [el('span', {}, [el('b', { class: 'soldi', testo: euro(s.spesoMese) }), ' spesi nel mese']),
@@ -492,7 +495,7 @@ function fisseDelMese(r) {
   ]);
 }
 
-export function vistaOggi(registro, config, alTocco, ridisegna) {
+export function vistaOggi(registro, config, alTocco, ridisegna, salvaConfig, salvaRegistro) {
   const giorno = oggiIso();
   const s = statoGiorno(config, registro, giorno);
   const giorni = strisciaSettimana(config, registro, giorno, 7);
@@ -519,6 +522,15 @@ export function vistaOggi(registro, config, alTocco, ridisegna) {
           : null,
       ]),
     ]),
+
+    // Un tocco nella coda ridisegna la schermata come un tocco sulle barre:
+    // la cifra grande non deve ripartire da zero come se rispondesse lei.
+    codaRevisione({
+      registro, config, oggi: giorno, alTocco,
+      ridisegna: () => { contaSu = false; ridisegna(); },
+      salvaConfig: (c) => { contaSu = false; salvaConfig(c); },
+      salvaRegistro: (r) => { contaSu = false; salvaRegistro(r); },
+    }),
 
     settimana(registro, config, s, giorni, giorno, ridisegna),
 

@@ -26,6 +26,7 @@ const NOMI_FILTRI = {
   spese: 'Spese',
   entrate: 'Entrate',
   fisse: 'Uscite fisse',
+  nonMensili: 'Non mensili',
   verificare: 'Da verificare',
   mano: 'A mano',
 };
@@ -62,7 +63,8 @@ export function spesa(t, alTocco, notaFissa, categoria) {
   const nota = notaFissa ?? t.causale
     ?? (t.entrata ? 'accredito'
       : t.fissa ? 'uscita fissa'
-        : t.source === 'manuale' ? 'a mano' : luogo);
+        : t.fondo ? 'spesa non mensile'
+          : t.source === 'manuale' ? 'a mano' : luogo);
 
   return el('button', {
     class: 'spesa',
@@ -86,7 +88,7 @@ export function spesa(t, alTocco, notaFissa, categoria) {
     ]),
     t.confidence === 'low' ? el('span', { class: 'pallino', title: 'da verificare' }) : null,
     el('span', {
-      class: 'importo soldi' + (t.entrata ? ' entrata' : t.fissa ? ' fissa' : ''),
+      class: 'importo soldi' + (t.entrata ? ' entrata' : t.fissa || t.fondo ? ' fissa' : ''),
       testo: (t.entrata ? '+' : '') + euro(t.amount),
     }),
   ]);
@@ -128,6 +130,7 @@ function riepilogo(r) {
   const voci = [
     ['speso', r.spese, ''],
     ...(r.fisse ? [['uscite fisse', r.fisse, 'fissa']] : []),
+    ...(r.nonMensili ? [['non mensili', r.nonMensili, 'fissa']] : []),
     ...(r.entrate ? [['entrate', r.entrate, 'entrata']] : []),
   ];
   return el('div', { class: 'righe' }, voci.map(([chiave, valore, classe]) => el('div', {}, [
@@ -249,7 +252,10 @@ export function vistaRegistro(registro, alTocco, mese, vaiA, config = {}) {
   // tastiera in cima alla pagina.
   const quante = registro.filter(FILTRI.verificare).length;
   const pastiglie = Object.entries(NOMI_FILTRI)
-    .filter(([k]) => k !== 'verificare' || quante)
+    // Le pastiglie che non troverebbero niente non si mostrano: un filtro che
+    // svuota sempre l'elenco sembra un elenco rotto.
+    .filter(([k]) => (k !== 'verificare' || quante)
+      && (k !== 'nonMensili' || filtro === k || registro.some(FILTRI.nonMensili)))
     .map(([k, nome]) => {
       const b = el('button', {
         class: 'filtro', type: 'button',

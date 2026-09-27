@@ -6,11 +6,12 @@
 // doveva esserci.
 
 import { el, euro, leggiNumero } from './comune.js';
-import { correggi, elimina, eSpesaVariabile } from '../domain/registro.js';
+import { correggi, elimina, eSpesaVariabile, meseDi } from '../domain/registro.js';
 import { chiaveFissa } from '../domain/banca.js';
 import { isoDelGiorno } from '../domain/tempo.js';
 import { categoriaDi, impostaCategoria } from '../domain/statistiche.js';
 import { sceltaCategoria } from './categorie.js';
+import { fondoValido } from '../domain/fondi.js';
 
 /**
  * Tiene aggiornato l'elenco di cio' che al prossimo import vale come uscita
@@ -51,6 +52,12 @@ export function apriModifica(transazione, registro, salva, config, salvaConfig) 
   // tu una volta, e da li' in avanti l'app lo sa per quel beneficiario.
   const fissa = el('input', { type: 'checkbox', class: 'interruttore' });
   fissa.checked = Boolean(transazione.fissa);
+  fissa.addEventListener('change', () => {
+    if (fissa.checked && fondo) {
+      fondo = undefined;
+      disegnaFondi();
+    }
+  });
 
   // La categoria sta sull'esercente, non su questa riga: sceglierla qui vuol
   // dire sceglierla per tutte le spese dello stesso posto, passate e future.
@@ -62,6 +69,29 @@ export function apriModifica(transazione, registro, salva, config, salvaConfig) 
   // vuota del nome sbagliato sopra quella del nome giusto, e tutte le spese di
   // quel bar la perdevano senza che nessuno avesse toccato niente.
   let toccata = false;
+
+  // Il fondo, invece, sta su questa riga e basta: l'assicurazione passa una
+  // volta l'anno, e lo stesso nome puo' essere anche il rimborso di un
+  // sinistro. Si propongono solo i fondi gia' nati il mese di questa spesa:
+  // pagare da un fondo una spesa di prima che esistesse vorrebbe dire
+  // prendere soldi che nessuno aveva messo da parte.
+  const fondiPossibili = (config?.fondi ?? [])
+    .filter((f) => fondoValido(f) && f.inizio <= meseDi(transazione));
+  let fondo = fondiPossibili.some((f) => f.id === transazione.fondo) ? transazione.fondo : undefined;
+  const sceltaFondo = el('div', { class: 'etichette' });
+  const disegnaFondi = () => sceltaFondo.replaceChildren(...fondiPossibili.map((f) => el('button', {
+    class: 'etichetta' + (f.id === fondo ? ' scelta' : ''),
+    type: 'button', testo: f.nome || 'Senza nome',
+    'aria-pressed': f.id === fondo ? 'true' : 'false',
+    onclick: () => {
+      fondo = f.id === fondo ? undefined : f.id;
+      // Fissa e pagata da un fondo sono due modi di stare fuori dal tetto, e
+      // insieme la stessa spesa uscirebbe due volte dal conto.
+      if (fondo) fissa.checked = false;
+      disegnaFondi();
+    },
+  })));
+  disegnaFondi();
 
   const salvaModifiche = () => {
     const valore = leggiNumero(importo.value);
@@ -89,6 +119,8 @@ export function apriModifica(transazione, registro, salva, config, salvaConfig) 
       amount: Math.round(valore * 100) / 100,
       occurredAt: isoDelGiorno(giorno.value, ora, minuto),
       fissa: fissa.checked,
+      // `undefined` e non `null`: nel JSONL il campo sparisce, com'era prima.
+      fondo: fissa.checked ? undefined : fondo,
     }));
     chiudi();
   };
@@ -117,11 +149,21 @@ export function apriModifica(transazione, registro, salva, config, salvaConfig) 
             testo: `Non consuma il tetto giornaliero. Al prossimo import vale per ${
               transazione.causale
                 ? `«${transazione.merchant} · ${transazione.causale}»`
-                : `tutto cio' che va a «${transazione.merchant}»`}.`,
+                : `tutto cio’ che va a «${transazione.merchant}»`}.`,
           }),
         ]),
         fissa,
       ]),
+    ]),
+
+    transazione.entrata || !fondiPossibili.length ? null : el('div', { class: 'titolo-sezione', testo: 'Spesa non mensile' }),
+    transazione.entrata || !fondiPossibili.length ? null : el('div', { class: 'carta' }, [
+      el('div', { class: 'campo' }, [
+        el('span', { class: 'campo-testo' }, [
+          el('small', { testo: 'Pagata con i soldi messi da parte: non consuma il tetto di quel giorno.' }),
+        ]),
+      ]),
+      sceltaFondo,
     ]),
 
     // Accrediti e uscite fisse non hanno categoria: stanno fuori da classifiche

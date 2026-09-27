@@ -10,6 +10,7 @@
 
 import { giornoDi, eSpesaVariabile, meseDi, meseSpostato } from './registro.js';
 import { coperturaMese, raggruppa, perCategoria } from './statistiche.js';
+import { quoteFondi } from './fondi.js';
 
 const due = (n) => String(n).padStart(2, '0');
 const centesimi = (n) => Number((Math.round(n * 100) / 100).toFixed(2));
@@ -32,6 +33,9 @@ export const CONFIG_VUOTA = {
   // Si guarda e basta - il tetto giornaliero segue il totale, vedi
   // `budgetCategorie`.
   limiti: {},
+  // Le spese che non arrivano ogni mese - assicurazione, bollo, regali - con la
+  // loro quota mensile: vedi `fondi.js`.
+  fondi: [],
 };
 
 /** Quanti giorni ha il mese. Il giorno 0 del mese dopo e' l'ultimo di questo. */
@@ -54,9 +58,16 @@ export function dopoLeFisse(config) {
   return centesimi((Number(config?.stipendio) || 0) - totaleUsciteFisse(config));
 }
 
-/** Quanto resta ogni mese per le spese variabili, cioe' quelle che il registro vede. */
-export function disponibileDelMese(config) {
-  return centesimi(dopoLeFisse(config) - obiettivoRisparmio(config));
+/**
+ * Quanto resta ogni mese per le spese variabili, cioe' quelle che il registro vede.
+ *
+ * Le quote dei fondi dipendono dal mese - chi apre il fondo a due mesi dalla
+ * scadenza paga di piu' quei due mesi - e da cio' che il registro ha visto
+ * pagare prima, quindi senza mese e registro valgono zero.
+ */
+export function disponibileDelMese(config, registro = [], mese = null) {
+  const fondi = mese ? quoteFondi(config, registro, mese) : 0;
+  return centesimi(dopoLeFisse(config) - obiettivoRisparmio(config) - fondi);
 }
 
 function sommaTra(registro, da, a) {
@@ -93,8 +104,9 @@ export function statoGiorno(config, registro, giorno) {
   const daQuando = giorni[0] ?? null;
   const parziale = daQuando !== null && daQuando > primo;
 
-  const disponibile = disponibileDelMese(config);
+  const disponibile = disponibileDelMese(config, registro, `${anno}-${due(mese)}`);
   const obiettivo = obiettivoRisparmio(config);
+  const fondi = quoteFondi(config, registro, `${anno}-${due(mese)}`);
   const spesoPrima = gg > 1 ? sommaTra(registro, primo, `${anno}-${due(mese)}-${due(gg - 1)}`) : 0;
   const spesoOggi = sommaTra(registro, giorno, giorno);
   const restanti = Math.max(1, nelMese - gg + 1);
@@ -129,6 +141,10 @@ export function statoGiorno(config, registro, giorno) {
       ? centesimi(Math.max(0, (disponibile - spesoPrima - spesoOggi) / (restanti - 1)))
       : null,
     risparmio: obiettivo,
+    // Le quote dei fondi di questo mese: escono prima del tetto, come il
+    // risparmio, ma non sono risparmio - sono spese gia' decise, solo non ancora
+    // arrivate.
+    fondi,
     // Quanto sarebbe messo da parte se il mese finisse adesso: e' l'obiettivo
     // piu' cio' che del tetto e' avanzato. Sopra l'obiettivo si e' risparmiato
     // di piu'; sotto zero non e' un risparmio piccolo, e' il gruzzolo che si
@@ -216,7 +232,6 @@ export function risparmioDeiMesi(config, registro, oggi) {
   if (!primoGiorno) return { mesi: [], totale: 0 };
 
   const meseOggi = String(oggi).slice(0, 7);
-  const disponibile = disponibileDelMese(config);
   const obiettivo = obiettivoRisparmio(config);
 
   const perMese = new Map();
@@ -232,6 +247,7 @@ export function risparmioDeiMesi(config, registro, oggi) {
     // Il registro parte a mese gia' iniziato: le spese dei primi giorni non le
     // ha viste nessuno, e quello che sembra risparmio e' solo assenza di dati.
     const parziale = primoGiorno > `${mese}-01`;
+    const disponibile = disponibileDelMese(config, registro, mese);
     return {
       mese,
       speso,
@@ -335,7 +351,7 @@ export function andamentoDelMese(config, registro, giorno) {
   const questo = cumulata(questoMese, gg);
   const precedente = cumulata(scorso, nelloScorso);
   const completo = coperturaMese(registro, scorso).completo;
-  const disponibile = Math.max(0, disponibileDelMese(config));
+  const disponibile = Math.max(0, disponibileDelMese(config, registro, questoMese));
   // Il giorno 31 di un mese contro un mese scorso di 30: si confronta con
   // l'ultimo giorno che quel mese ha avuto.
   const stessoGiorno = precedente[Math.min(gg, nelloScorso) - 1] ?? 0;
@@ -379,12 +395,17 @@ export function ripartizioneMese(config, registro, giorno) {
   // Solo quello che le spese mangiano oltre il flessibile e' eroso.
   const spazio = Math.max(0, stipendio - s.usciteFisse);
   const risparmioPossibile = Math.min(s.risparmio, spazio);
+  // I fondi vengono dopo il risparmio: se lo stipendio non basta per tutti e
+  // due, quello che manca lo dice `pianoCorto`, e la barra non disegna quote
+  // che non ci stanno.
+  const fondiPossibili = Math.min(s.fondi, Math.max(0, spazio - risparmioPossibile));
   const flessibile = Math.max(0, s.disponibile);
   const sfondo = Math.max(0, s.spesoMese - flessibile);
   const eroso = Math.min(risparmioPossibile, sfondo);
   const voci = [
     { chiave: 'fisse', nome: 'Uscite fisse', importo: s.usciteFisse },
     { chiave: 'risparmio', nome: 'Da parte', importo: centesimi(risparmioPossibile - eroso) },
+    ...(s.fondi > 0 ? [{ chiave: 'fondi', nome: 'Spese non mensili', importo: centesimi(fondiPossibili) }] : []),
     { chiave: 'speso', nome: 'Spese del mese', importo: s.spesoMese },
     { chiave: 'resta', nome: 'Ancora da spendere', importo: centesimi(Math.max(0, flessibile - s.spesoMese)) },
   ];
@@ -395,7 +416,7 @@ export function ripartizioneMese(config, registro, giorno) {
     totale,
     eroso: centesimi(eroso),
     // Quanto manca al piano prima ancora di cominciare il mese.
-    pianoCorto: centesimi(Math.max(0, s.usciteFisse + s.risparmio - stipendio)),
+    pianoCorto: centesimi(Math.max(0, s.usciteFisse + s.risparmio + s.fondi - stipendio)),
     oltre: centesimi(Math.max(0, totale - stipendio)),
   };
 }
@@ -452,7 +473,7 @@ export function budgetCategorie(config, registro, mese, oggi) {
     .sort((a, b) => b.limite - a.limite || (a.categoria < b.categoria ? -1 : 1));
 
   const assegnato = centesimi(conLimite.reduce((s, c) => s + c.limite, 0));
-  const disponibile = Math.max(0, disponibileDelMese(config));
+  const disponibile = Math.max(0, disponibileDelMese(config, registro, mese));
   return {
     righe: conLimite,
     senzaLimite: cat.categorie

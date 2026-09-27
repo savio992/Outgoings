@@ -89,7 +89,7 @@ function corpo() {
   if (vista === 'budget') return vistaBudget(registro, config, setConfig, setRegistro, setConfigZitto);
   // Il giorno scelto nella striscia vive dentro la vista, come le classifiche
   // in Analisi: per ridisegnarla basta rifare il giro da qui.
-  return vistaOggi(registro, config, correggi, disegna);
+  return vistaOggi(registro, config, correggi, disegna, setConfig, setRegistro);
 }
 
 /**

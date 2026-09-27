@@ -249,11 +249,16 @@ export function giornoDi(t) {
  * media renderebbe il tetto inutile proprio nel giorno in cui cadono, che e' il
  * giorno in cui non hai fatto niente di diverso dal solito.
  *
- * Le transazioni piu' vecchie non hanno questi due campi: senza, valgono spese
+ * Per lo stesso motivo restano fuori le spese pagate da un fondo - vedi
+ * `fondi.js`: l'assicurazione dell'auto e' stata messa da parte un mese alla
+ * volta, e contarla anche il giorno in cui arriva vorrebbe dire pagarla due
+ * volte.
+ *
+ * Le transazioni piu' vecchie non hanno questi campi: senza, valgono spese
  * variabili, che e' quello che erano.
  */
 export function eSpesaVariabile(t) {
-  return !t.entrata && !t.fissa;
+  return !t.entrata && !t.fissa && !t.fondo;
 }
 
 /**
@@ -505,6 +510,9 @@ export function riepilogoMese(registro, mese) {
     mese,
     spese: somma(dentro.filter(eSpesaVariabile)),
     fisse: somma(dentro.filter((t) => t.fissa)),
+    // Fuori dal tetto ma non spariti: senza questa voce il mese dell'assicurazione
+    // sembrerebbe un mese in cui quei soldi non sono usciti.
+    nonMensili: somma(dentro.filter((t) => t.fondo && !t.fissa && !t.entrata)),
     entrate: somma(dentro.filter((t) => t.entrata)),
     quante: dentro.length,
   };

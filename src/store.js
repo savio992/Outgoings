@@ -42,6 +42,7 @@ export function carica() {
   }
   if (!Array.isArray(config.usciteFisse)) config.usciteFisse = [];
   if (!Array.isArray(config.fisse)) config.fisse = [];
+  if (!Array.isArray(config.fondi)) config.fondi = [];
 }
 
 export const getRegistro = () => registro;

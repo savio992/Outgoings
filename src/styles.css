@@ -39,6 +39,10 @@
   --allarme-testo: #c9303a;
   --allarme-tenue: #fdecec;
   --neutro: #a8a49d;
+  /* I fondi delle spese non mensili: nel piano stanno fra il verde del
+     risparmio e l'arancio delle spese, e il blu e' l'unica tinta che resta
+     distinta da tutti e due anche per chi non vede il rosso o il verde. */
+  --fondi: #4f7fd9;
   --ombra: 0 1px 2px rgba(31, 29, 26, .04);
   --ombra-alta: 0 12px 32px -8px rgba(31, 29, 26, .18);
   --raggio: 14px;
@@ -69,6 +73,7 @@
     --allarme-testo: #ff7a7a;
     --allarme-tenue: #2e1414;
     --neutro: #5d5a55;
+    --fondi: #6f98ee;
     --ombra: 0 1px 2px rgba(0, 0, 0, .4);
     --ombra-alta: 0 12px 32px -8px rgba(0, 0, 0, .6);
   }
@@ -178,6 +183,7 @@ body {
 .metro.sereno span  { background: var(--ok); }
 .metro.attento span { background: var(--attenzione); }
 .metro.oltre span   { background: var(--allarme); }
+.metro.fondi span   { background: var(--fondi); }
 /* Sotto zero la barra e' vuota per definizione: a dirlo resta il colore della
    traccia, che e' l'unica cosa rimasta da colorare. */
 .metro.oltre.sotto-zero { background: var(--allarme-tenue); }
@@ -609,6 +615,7 @@ button.gambo { cursor: pointer; }
 .pila-barra span + span { box-shadow: -2px 0 0 var(--carta); }
 .voce-fisse { background: var(--neutro); }
 .voce-risparmio { background: var(--ok); }
+.voce-fondi { background: var(--fondi); }
 .voce-speso { background: var(--accento); }
 .voce-resta { background: color-mix(in srgb, var(--accento) 28%, var(--carta)); }
 .voce-oltre { background: var(--allarme); }
@@ -629,6 +636,52 @@ button.gambo { cursor: pointer; }
 .limite .conto .oltre { color: var(--allarme-testo); font-weight: 600; }
 .limite .conto .sereno { color: var(--ok-testo); font-weight: 600; }
 .limite .conto .attento { color: var(--attenzione-testo); font-weight: 600; }
+
+/* Un fondo: il nome sulla riga di testa, i quattro numeri in una griglia da
+   due, e sotto la barra di quanto c'e' dentro. Quattro campi in fila su un
+   telefono uscirebbero dalla carta. */
+.fondo .fila input.nome {
+  flex: 1; min-width: 0; padding: 8px 10px;
+  border: 1px solid var(--bordo); border-radius: 10px;
+  background: var(--carta-alt); color: var(--testo);
+  font: inherit; font-size: 15px; font-weight: 580; text-align: left;
+}
+.fondo .togli {
+  border: 0; background: none; color: var(--testo-fioco);
+  font-size: 22px; line-height: 1; cursor: pointer;
+  flex: none; width: 44px; height: 44px; margin: -6px -12px -6px -4px;
+  display: flex; align-items: center; justify-content: center;
+}
+.fondo .campi { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; margin-top: 10px; }
+.fondo .campi label {
+  display: flex; flex-direction: column; gap: 4px; min-width: 0;
+  font-size: 12px; color: var(--testo-tenue);
+}
+.fondo .campi input, .fondo .campi select {
+  width: 100%; min-width: 0; padding: 8px 10px;
+  border: 1px solid var(--bordo); border-radius: 10px;
+  background: var(--carta-alt); color: var(--testo);
+  font: inherit; font-size: 15px; text-align: left;
+  font-variant-numeric: tabular-nums;
+  -webkit-appearance: none; appearance: none;
+}
+.fondo .campi select {
+  background-image: linear-gradient(45deg, transparent 50%, var(--testo-fioco) 50%),
+    linear-gradient(135deg, var(--testo-fioco) 50%, transparent 50%);
+  background-position: calc(100% - 15px) 55%, calc(100% - 10px) 55%;
+  background-size: 5px 5px; background-repeat: no-repeat;
+  padding-right: 26px;
+}
+.fondo .campi input:focus, .fondo .campi select:focus, .fondo .fila input.nome:focus {
+  outline: 2px solid var(--accento); outline-offset: -1px;
+}
+.fondo .conto + .conto { margin-top: 2px; }
+/* Il mese nativo porta nome e anno per intero ("novembre 2026") e l'icona:
+   con il margine degli altri campi l'anno esce tagliato. */
+.fondo .campi input[type='month'] { padding: 8px 6px 8px 10px; font-size: 14px; }
+/* Nella coda la riga piccola dice cosa fare, e tagliata a meta' non lo dice. */
+.coda .spesa .nome small { white-space: normal; }
+.limite .conto.attento { color: var(--attenzione-testo); }
 
 /* --- flussi di cassa ---------------------------------------------------- */
 
@@ -838,3 +891,15 @@ button.gambo { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .metro span, .riempimento, .quota, .pila-barra span, .foglio, .velo { transition: none; animation: none; }
 }
+
+/* --- la coda da rivedere (Oggi) ----------------------------------------- */
+
+/* Le voci si sistemano sul posto: sotto la riga toccata si aprono le
+   etichette, dentro la stessa carta, senza un foglio in piu' da chiudere. */
+.coda .nota { padding-bottom: 10px; }
+.voce-coda { border-top: 1px solid var(--bordo); }
+.voce-coda > .spesa { border-top: 0; }
+.voce-coda.aperta > .spesa { background: var(--carta-alt); }
+.azioni-coda { padding: 0 18px 12px; }
+.azioni-coda .etichette { padding: 4px 0 4px; }
+.azioni-coda .apri-tutto { margin: 0 -18px -12px; width: calc(100% + 36px); }

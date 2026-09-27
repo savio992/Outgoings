@@ -253,6 +253,7 @@ export function riepilogoAnalitico(registro, mese, config = {}) {
   const gruppi = raggruppa(registro, mese, config);
   const delMese = (registro ?? []).filter((t) => meseDi(t) === mese);
   const fisse = delMese.filter((t) => t.fissa && !t.entrata);
+  const nonMensili = delMese.filter((t) => t.fondo && !t.fissa && !t.entrata);
 
   return {
     mese,
@@ -262,6 +263,7 @@ export function riepilogoAnalitico(registro, mese, config = {}) {
     quante: gruppi.reduce((s, g) => s + g.quante, 0),
     esercenti: gruppi.length,
     fisse: { quante: fisse.length, totale: centesimi(fisse.reduce((s, t) => s + t.amount, 0)) },
+    nonMensili: { quante: nonMensili.length, totale: centesimi(nonMensili.reduce((s, t) => s + t.amount, 0)) },
   };
 }
 

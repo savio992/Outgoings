@@ -15,7 +15,8 @@ import {
   statoGiorno, giorniDelMese, risparmioDeiMesi, dopoLeFisse, saldoStimato, ripartizioneMese, budgetCategorie,
 } from '../domain/budget.js';
 import { actualBudget } from '../domain/export.js';
-import { daJsonl, merge, aJsonl, aBackup, daBackup } from '../domain/registro.js';
+import { daJsonl, merge, aJsonl, aBackup, daBackup, meseSpostato } from '../domain/registro.js';
+import { CADENZE, nuovoFondo, statoFondo, staccaFondo } from '../domain/fondi.js';
 import { VERSIONE } from '../versione.js';
 
 /**
@@ -68,7 +69,9 @@ export function vistaBudget(registroIniziale, configIniziale, setConfig, setRegi
 
   const conto = el('div', { class: 'carta' });
   const piano = el('div', { class: 'sezione' });
-  const limitiDinamici = [];
+  // Le parti che dipendono dai numeri e si ridisegnano a ogni tasto, senza
+  // toccare i campi: le barre dei limiti e quelle dei fondi.
+  const dinamici = [];
 
   /**
    * Lo stipendio in quattro pezzi. Si ridisegna a ogni tasto insieme al conto:
@@ -103,7 +106,10 @@ export function vistaBudget(registroIniziale, configIniziale, setConfig, setRegi
       // e un pezzo rosso in piu' sembrerebbe un'altra voce di spesa.
       // Il piano corto e' un'altra cosa dallo sfondamento: non l'hanno causato
       // le spese, e' scritto nei numeri qui sotto prima ancora di cominciare.
-      r.pianoCorto > 0 ? el('div', { class: 'avviso' }, [
+      r.pianoCorto > 0 ? el('div', { class: 'avviso' }, r.voci.some((v) => v.chiave === 'fondi') ? [
+        'Uscite fisse, risparmio e spese non mensili sommano ', el('b', { class: 'soldi', testo: euro(r.pianoCorto) }),
+        ' piu’ dello stipendio: non ci stanno tutti.',
+      ] : [
         'Uscite fisse e risparmio sommano ', el('b', { class: 'soldi', testo: euro(r.pianoCorto) }),
         ' piu’ dello stipendio: il risparmio scritto qui sotto non ci sta tutto.',
       ]) : null,
@@ -117,7 +123,7 @@ export function vistaBudget(registroIniziale, configIniziale, setConfig, setRegi
 
   function disegnaConto() {
     disegnaPiano();
-    for (const f of limitiDinamici) f();
+    for (const f of dinamici) f();
     const s = statoGiorno(config, registro, oggiIso());
     const [anno, mese] = oggiIso().split('-').map(Number);
     const nelMese = giorniDelMese(anno, mese);
@@ -127,11 +133,12 @@ export function vistaBudget(registroIniziale, configIniziale, setConfig, setRegi
     // tetto. Scritta cosi' si vede subito qual e' il pezzo da toccare quando il
     // numero in fondo non piace.
     const passi = [`Dopo ${euro(s.usciteFisse)} di uscite fisse`];
-    if (s.risparmio) passi.push(`e ${euro(s.risparmio)} messi da parte`);
+    if (s.risparmio) passi.push(`${s.fondi ? ',' : ' e'} ${euro(s.risparmio)} messi da parte`);
+    if (s.fondi) passi.push(` e ${euro(s.fondi)} per le spese non mensili`);
 
     conto.replaceChildren(el('div', { class: 'esito' }, s.attiva
       ? [
-        `${passi.join(' ')} restano `,
+        `${passi.join('')} restano `,
         el('b', { class: 'soldi', testo: euro(s.disponibile) }),
         ` per le spese di tutti i giorni. Su ${nelMese} giorni fanno `,
         el('b', { class: 'soldi', testo: euro(s.disponibile / nelMese) }),
@@ -140,9 +147,11 @@ export function vistaBudget(registroIniziale, configIniziale, setConfig, setRegi
       ]
       : s.troppoRisparmio
         ? [
-          'Fra uscite fisse e risparmio non resta niente per i giorni: ',
+          s.fondi ? 'Fra uscite fisse, risparmio e spese non mensili non resta niente per i giorni: '
+            : 'Fra uscite fisse e risparmio non resta niente per i giorni: ',
           el('b', { class: 'soldi', testo: euro(dopoLeFisse(config)) }),
-          ` dopo le fisse, ${euro(s.risparmio)} da mettere da parte. `,
+          ` dopo le fisse, ${euro(s.risparmio)} da mettere da parte`,
+          s.fondi ? ` e ${euro(s.fondi)} di quote. ` : '. ',
           'Abbassa l’obiettivo, o il tetto giornaliero non esiste.',
         ]
         : ['Inserisci lo stipendio per vedere il tetto giornaliero.']));
@@ -309,7 +318,7 @@ export function vistaBudget(registroIniziale, configIniziale, setConfig, setRegi
       // L'etichetta punta al campo: senza, VoiceOver legge "campo di testo" e
       // basta, e dieci campi uguali non si distinguono.
       input.id = `limite-${i}`;
-      limitiDinamici.push(() => {
+      dinamici.push(() => {
         const b = budgetCategorie(config, registro, mese, oggiIso());
         const riga = b.righe.find((c) => c.categoria === categoria);
         const libera = b.senzaLimite.find((c) => c.categoria === categoria);
@@ -340,7 +349,7 @@ export function vistaBudget(registroIniziale, configIniziale, setConfig, setRegi
     });
 
     const piede = el('div', { class: 'avviso' });
-    limitiDinamici.push(() => {
+    dinamici.push(() => {
       const b = budgetCategorie(config, registro, mese, oggiIso());
       const frasi = [];
       if (b.disponibile > 0 && b.assegnato > 0) {
@@ -363,7 +372,133 @@ export function vistaBudget(registroIniziale, configIniziale, setConfig, setRegi
     ]);
   }
 
+  /**
+   * Le spese che non arrivano ogni mese, alla Monarch: ognuna col suo fondo.
+   *
+   * Sotto ogni fondo c'e' quanto ha dentro e quanto chiede questo mese, e si
+   * aggiorna mentre si scrive come le barre dei limiti. Il numero da guardare
+   * e' la quota: e' quella che il tetto di oggi ha gia' tolto.
+   */
+  function speseNonMensili() {
+    const mese = oggiIso().slice(0, 7);
+    const fondi = () => config.fondi ?? [];
+    const cambia = (id, patch) => scrivendo({
+      fondi: fondi().map((f) => (f.id === id ? { ...f, ...patch } : f)),
+    });
+
+    const righe = fondi().map((f) => {
+      const sotto = el('div');
+      const nome = el('input', {
+        class: 'nome', type: 'text', value: f.nome ?? '',
+        placeholder: 'Assicurazione, bollo, regali…', 'aria-label': 'Nome della spesa',
+        oninput: (e) => cambia(f.id, { nome: e.target.value }),
+      });
+      const ogni = el('select', {
+        onchange: (e) => cambia(f.id, { ogniMesi: Number(e.target.value) }),
+      }, [...new Set([...CADENZE, Number(f.ogniMesi) || 12])].sort((a, b) => a - b).map((n) => el('option', {
+        value: String(n), testo: n === 12 ? 'ogni anno' : n === 24 ? 'ogni due anni' : `ogni ${n} mesi`,
+      })));
+      ogni.value = String(f.ogniMesi ?? 12);
+      // `month` e non `date`: la scadenza di un'assicurazione e' un mese, e
+      // chiedere il giorno vorrebbe dire inventarne uno.
+      const scadenza = el('input', {
+        type: 'month', value: f.scadenza ?? '', min: mese,
+        onchange: (e) => cambia(f.id, { scadenza: e.target.value }),
+      });
+
+      dinamici.push(() => {
+        const attuale = fondi().find((k) => k.id === f.id);
+        const st = statoFondo(attuale, registro, mese);
+        if (!st.valido) {
+          sotto.replaceChildren(el('div', { class: 'conto' }, [
+            el('span', { testo: 'Scrivi importo e prossima scadenza per metterlo nel conto.' }),
+          ]));
+          return;
+        }
+        // Blu come nel piano finche' il fondo si riempie: e' un accumulo, non
+        // uno stato da giudicare. Le tinte di stato solo quando c'e' da dire.
+        const stato = st.daParte < 0 ? 'oltre' : st.scaduta ? 'attento' : 'fondi';
+        const quota = st.serve > 0 ? Math.max(0, Math.min(1, st.daParte / st.serve)) : 1;
+        sotto.replaceChildren(
+          el('div', { class: `metro ${stato}` + (st.daParte < 0 ? ' sotto-zero' : '') }, [
+            el('span', { style: `width:${(quota * 100).toFixed(1)}%` }),
+          ]),
+          el('div', { class: 'conto' }, [
+            el('span', { class: 'soldi', testo: st.daParte < 0
+              ? `Sotto di ${euro(-st.daParte)}: lo recuperano i mesi dopo`
+              : `${euro(st.daParte)} da parte su ${euro(st.serve)}` }),
+          ]),
+          el('div', { class: `conto ${st.scaduta ? 'attento' : ''}` }, [
+            el('span', { testo: [
+              st.quota > 0 ? `Questo mese ${euro(st.quota)}.` : 'Questo mese niente.',
+              st.scaduta
+                ? `Attesa da ${nomeMese(st.scadenza).toLowerCase()}: quando arriva, segnala sulla spesa.`
+                : st.pagatoMese > 0
+                  ? `Pagati ${euro(st.pagatoMese)}; la prossima a ${nomeMese(st.scadenza).toLowerCase()}.`
+                  : st.mancano === 0 ? 'Arriva questo mese.'
+                    : `Scade a ${nomeMese(st.scadenza).toLowerCase()}, fra ${st.mancano} ${st.mancano === 1 ? 'mese' : 'mesi'}.`,
+            ].join(' ') }),
+          ]),
+        );
+      });
+
+      return el('div', { class: 'limite fondo' }, [
+        el('div', { class: 'fila' }, [
+          nome,
+          el('button', {
+            class: 'togli', type: 'button', testo: '×', 'aria-label': `Togli ${f.nome || 'questa spesa'}`,
+            onclick: () => {
+              // Le spese pagate da questo fondo tornano spese di tutti i
+              // giorni: fuori dal tetto e senza un fondo non starebbero da
+              // nessuna parte. Si chiede prima, perche' il tetto di quei
+              // giorni cambia.
+              const segnate = registro.filter((t) => t.fondo === f.id).length;
+              if (segnate && !confirm(`${segnate} ${segnate === 1 ? 'spesa pagata' : 'spese pagate'} da questo fondo `
+                + `${segnate === 1 ? 'torna' : 'tornano'} nel tetto del giorno in cui ${segnate === 1 ? 'e’ arrivata' : 'sono arrivate'}. Lo tolgo?`)) return;
+              if (segnate) setRegistro(staccaFondo(registro, f.id));
+              struttura({ fondi: fondi().filter((k) => k.id !== f.id) });
+            },
+          }),
+        ]),
+        el('div', { class: 'campi' }, [
+          el('label', {}, ['Quanto', campoEuro(f.importo, (v) => cambia(f.id, { importo: v }))]),
+          el('label', {}, ['Quando torna', ogni]),
+          el('label', {}, ['Prossima scadenza', scadenza]),
+          el('label', {}, ['Gia’ da parte', campoEuro(f.giaDaParte, (v) => cambia(f.id, { giaDaParte: v }))]),
+        ]),
+        sotto,
+      ]);
+    });
+
+    return el('div', { class: 'sezione' }, [
+      el('div', { class: 'titolo-sezione', testo: 'Spese non mensili' }),
+      el('div', { class: 'carta' }, [
+        ...righe,
+        el('div', { class: 'campo' }, [
+          el('button', {
+            class: 'togli piu', type: 'button', testo: '+', 'aria-label': 'Aggiungi una spesa non mensile',
+            onclick: () => struttura({
+              fondi: [...fondi(), nuovoFondo(config, registro, {
+                nome: '', importo: 0, ogniMesi: 12, scadenza: meseSpostato(mese, 12),
+              }, oggiIso())],
+            }),
+          }),
+          el('label', {
+            class: 'fioco',
+            testo: fondi().length ? 'Aggiungine un’altra' : 'Assicurazione, bollo, regali di Natale…',
+          }),
+        ]),
+        el('div', { class: 'avviso' }, [
+          'Ogni mese esce una quota, prima del tetto giornaliero: quello che manca alla prossima '
+          + 'scadenza, diviso i mesi che restano. Quando la spesa arriva, toccala e scegli il fondo: '
+          + 'il tetto di quel giorno non la vede, perche' + '’' + ' e’ gia’ stata messa da parte.',
+        ]),
+      ]),
+    ]);
+  }
+
   const limiti = limitiCategoria();
+  const nonMensili = speseNonMensili();
   disegnaConto();
 
   return el('div', {}, [
@@ -423,6 +558,8 @@ export function vistaBudget(registroIniziale, configIniziale, setConfig, setRegi
         ]),
       ]),
     ]),
+
+    nonMensili,
 
     el('div', { class: 'sezione' }, [
       el('div', { class: 'titolo-sezione', testo: 'Il tetto' }),
