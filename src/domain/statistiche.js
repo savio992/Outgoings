@@ -378,3 +378,26 @@ export function flussoDiCassa(registro, oggi) {
     };
   });
 }
+
+/**
+ * La configurazione con la categoria di un esercente cambiata.
+ *
+ * Si scrive sulla chiave del gruppo, che e' dove `raggruppa` la cerca per
+ * prima. Toglierla invece vuol dire toglierla da tutti i posti in cui
+ * `categoriaDi` la troverebbe: altrimenti una categoria rimasta sulla grafia
+ * di prima di un'unione tornerebbe fuori da sola, e il tocco che la spegne
+ * sembrerebbe non aver fatto niente.
+ */
+export function impostaCategoria(config, nome, categoria) {
+  const alias = config?.alias ?? {};
+  const chiave = chiaveDiGruppo(nome, alias);
+  const categorie = { ...(config?.categorie ?? {}) };
+  if (categoria) {
+    categorie[chiave] = categoria;
+  } else {
+    delete categorie[chiave];
+    delete categorie[impronta(nome)];
+    for (const k of Object.keys(alias)) if (impronta(alias[k]) === chiave) delete categorie[k];
+  }
+  return { ...config, categorie };
+}

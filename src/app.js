@@ -43,6 +43,19 @@ function dataDiOggi() {
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
+/**
+ * Il titolo grande della pagina, come nelle app di Monarch. Su Oggi e' un
+ * saluto: e' la schermata che si apre ogni mattina, e il nome del tab sarebbe
+ * solo un'etichetta ripetuta sotto al pollice.
+ */
+function titoloPagina() {
+  if (vista !== 'oggi') return VISTE.find((v) => v.id === vista).nome;
+  const ora = Number(new Intl.DateTimeFormat('it-IT', {
+    hour: 'numeric', hourCycle: 'h23', timeZone: 'Europe/Rome',
+  }).format(new Date()));
+  return ora < 5 ? 'Buonanotte' : ora < 13 ? 'Buongiorno' : ora < 18 ? 'Buon pomeriggio' : 'Buonasera';
+}
+
 /** Toccare una spesa la apre in correzione, da qualunque elenco. */
 function correggi(t) {
   apriModifica(t, getRegistro(), setRegistro, getConfig(), setConfig);
@@ -57,7 +70,7 @@ function corpo() {
     scrollTo({ top: 0 });
   };
   if (vista === 'registro') {
-    return vistaRegistro(registro, correggi, mese ?? oggiIso().slice(0, 7), vaiA);
+    return vistaRegistro(registro, correggi, mese ?? oggiIso().slice(0, 7), vaiA, config);
   }
   if (vista === 'analisi') {
     return vistaAnalisi({
@@ -135,8 +148,11 @@ function disegna() {
   // opzionali vanno filtrati prima, non passati e sperati.
   app.replaceChildren(...[
     el('header', { class: 'intestazione' }, [
-      el('div', { class: 'marchio' }, [NOME.slice(0, 3), el('span', { testo: NOME.slice(3) })]),
-      el('div', { class: 'data', testo: dataDiOggi() }),
+      el('div', { class: 'fila' }, [
+        el('div', { class: 'marchio', testo: NOME }),
+        el('div', { class: 'data', testo: dataDiOggi() }),
+      ]),
+      el('h1', { class: 'titolo-pagina', testo: titoloPagina() }),
     ]),
     corpo(),
     azioni(),

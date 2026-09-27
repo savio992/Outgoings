@@ -53,7 +53,15 @@ const TINTE = [
   '#a8323f', '#7a6410', '#3f6d8f', '#8a4a2a',
 ];
 
-/** Sempre la stessa tinta per lo stesso esercente, senza tenerla da parte. */
+/**
+ * Sempre la stessa tinta per lo stesso esercente, senza tenerla da parte.
+ *
+ * Esce come variabile CSS e non come sfondo: il sigillo la diluisce da solo,
+ * e in modo diverso fra chiaro e scuro.
+ */
+export const stileTinta = (nome) => `--tinta:${tinta(String(nome ?? ''))}`;
+
+/** La tinta di un nome: un hash povero, ma stabile fra un'apertura e l'altra. */
 export function tinta(nome) {
   let h = 0;
   for (let i = 0; i < nome.length; i++) h = (h * 31 + nome.charCodeAt(i)) >>> 0;
@@ -117,12 +125,20 @@ export const ICONE = {
   registro: 'M4 6h16M4 12h16M4 18h10',
   analisi: 'M5 20V11M12 20V4M19 20v-6',
   budget: 'M3 7h18v12H3zM3 7l2-3h14l2 3M9 12h6',
+  cerca: 'M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14M20 20l-4-4',
 };
 
 /** Il giorno della settimana in una lettera sola: L M M G V S D. */
 const SIGLA = new Intl.DateTimeFormat('it-IT', { weekday: 'short', timeZone: 'UTC' });
 export function siglaGiorno(giorno) {
   return SIGLA.format(new Date(giorno + 'T12:00:00Z')).charAt(0).toUpperCase();
+}
+
+const MESE_BREVE = new Intl.DateTimeFormat('it-IT', { month: 'short', timeZone: 'UTC' });
+
+/** "ago", "set": la sigla di un mese sotto una colonna. */
+export function siglaMese(mese) {
+  return MESE_BREVE.format(new Date(mese + '-01T12:00:00Z')).replace('.', '');
 }
 
 /** Numeri che salgono: fa sembrare vivo un numero che altrimenti compare e basta. */

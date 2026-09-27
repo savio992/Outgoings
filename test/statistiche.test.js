@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   raggruppa, perRicorrenza, unaTantum, perCategoria, perGiornoSettimana,
   coperturaMese, riepilogoAnalitico, andamentoMesi, nomeDiGruppo, indiceGiorno,
-  categoriaDi, chiaveDiGruppo, flussoDiCassa,
+  categoriaDi, chiaveDiGruppo, flussoDiCassa, impostaCategoria,
 } from '../src/domain/statistiche.js';
 
 let n = 0;
@@ -219,4 +219,18 @@ test('il flusso di cassa tiene fisse e variabili separate, e il tasso solo con e
   assert.equal(settembre.tasso, null);
   assert.equal(settembre.inCorso, true);
   assert.equal(f.find((m) => m.mese === '2026-07').completo, false);
+});
+
+test('una categoria spenta non torna fuori da una grafia unita', () => {
+  const config = {
+    alias: { [chiaveDiGruppo('FAMILA MEGAGEST')]: 'Famila' },
+    categorie: { [chiaveDiGruppo('FAMILA MEGAGEST')]: 'Spesa' },
+  };
+  const spenta = impostaCategoria(config, 'Famila', null);
+  assert.equal(categoriaDi({ merchant: 'Famila' }, spenta), null);
+  assert.equal(categoriaDi({ merchant: 'FAMILA MEGAGEST' }, spenta), null);
+
+  const accesa = impostaCategoria(spenta, 'FAMILA MEGAGEST', 'Casa');
+  assert.equal(categoriaDi({ merchant: 'Famila' }, accesa), 'Casa');
+  assert.equal(raggruppa([spesa('2026-08-01', 'FAMILA MEGAGEST', 3)], '2026-08', accesa)[0].categoria, 'Casa');
 });

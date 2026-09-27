@@ -1,5 +1,9 @@
-// Stipendio, uscite fisse, e le due porte del registro: export per Actual e il
-// file JSONL da tenere su iCloud Drive.
+// Stipendio, uscite fisse, limiti per categoria, e le due porte del registro:
+// export per Actual e il file JSONL da tenere su iCloud Drive.
+//
+// In cima c'e' il piano del mese alla Monarch: lo stipendio come una barra sola
+// divisa in fisse, risparmio, speso e resto. E' la catena del tetto disegnata,
+// ed e' il modo piu' corto di rispondere a "perche' il tetto e' cosi' basso".
 //
 // I campi di questa schermata non passano da `setConfig`: mentre si scrive si
 // salva zitti e si aggiorna a mano il solo riquadro che dipende dai numeri.
@@ -7,7 +11,9 @@
 // l'input che si sta usando - che perderebbe il fuoco a meta' parola.
 
 import { el, euro, oggiIso, leggiNumero, nomeMese, dataBreve } from './comune.js';
-import { statoGiorno, giorniDelMese, risparmioDeiMesi, dopoLeFisse, saldoStimato } from '../domain/budget.js';
+import {
+  statoGiorno, giorniDelMese, risparmioDeiMesi, dopoLeFisse, saldoStimato, ripartizioneMese, budgetCategorie,
+} from '../domain/budget.js';
 import { actualBudget } from '../domain/export.js';
 import { daJsonl, merge, aJsonl, aBackup, daBackup } from '../domain/registro.js';
 import { VERSIONE } from '../versione.js';
@@ -61,8 +67,51 @@ export function vistaBudget(registroIniziale, configIniziale, setConfig, setRegi
   let config = configIniziale;
 
   const conto = el('div', { class: 'carta' });
+  const piano = el('div', { class: 'sezione' });
+  const limitiDinamici = [];
+
+  /**
+   * Lo stipendio in quattro pezzi. Si ridisegna a ogni tasto insieme al conto:
+   * scrivere l'affitto e vedere il pezzo grigio allungarsi e' la spiegazione.
+   */
+  function disegnaPiano() {
+    const r = ripartizioneMese(config, registro, oggiIso());
+    if (!r.stipendio) {
+      piano.replaceChildren();
+      return;
+    }
+    const scala = Math.max(r.stipendio, r.totale, 1);
+    const larghezza = (v) => `${((v / scala) * 100).toFixed(2)}%`;
+    piano.replaceChildren(el('div', { class: 'carta' }, [
+      el('div', { class: 'testa-carta' }, [
+        el('span', { testo: 'Il piano del mese' }),
+        el('span', { class: 'totale', testo: nomeMese(oggiIso().slice(0, 7)) }),
+      ]),
+      el('div', { class: 'ripartizione' }, [
+        el('div', { class: 'cifra soldi' }, [euro(r.stipendio), el('small', { testo: ' di stipendio' })]),
+        el('div', { class: 'pila-barra', role: 'img', 'aria-label': r.voci.map((v) => `${v.nome} ${euro(v.importo)}`).join(', ') },
+          r.voci.filter((v) => v.importo > 0).map((v) => el('span', { class: `voce-${v.chiave}`, style: `width:${larghezza(v.importo)}` }))),
+        el('div', { class: 'voci' }, r.voci.map((v) => el('div', {}, [
+          el('i', { class: `voce-${v.chiave}` }),
+          el('span', {}, [
+            el('span', { class: 'quanto soldi', testo: euro(v.importo) }),
+            el('span', { class: 'cosa', testo: v.nome }),
+          ]),
+        ]))),
+      ]),
+      // Lo sfondamento si dice a parole: nella barra e' gia' dentro "spese",
+      // e un pezzo rosso in piu' sembrerebbe un'altra voce di spesa.
+      r.eroso > 0 ? el('div', { class: 'avviso' }, [
+        'Le spese hanno gia’ preso ', el('b', { class: 'soldi', testo: euro(r.eroso) }), ' dal risparmio',
+        r.oltre > 0 ? [' e sono andate oltre lo stipendio di ', el('b', { class: 'soldi', testo: euro(r.oltre) })] : null,
+        '.',
+      ].flat().filter(Boolean)) : null,
+    ]));
+  }
 
   function disegnaConto() {
+    disegnaPiano();
+    for (const f of limitiDinamici) f();
     const s = statoGiorno(config, registro, oggiIso());
     const [anno, mese] = oggiIso().split('-').map(Number);
     const nelMese = giorniDelMese(anno, mese);
@@ -220,9 +269,97 @@ export function vistaBudget(registroIniziale, configIniziale, setConfig, setRegi
     ]);
   }
 
+  /**
+   * I limiti per categoria, alla Monarch: un campo e una barra per ognuna.
+   *
+   * Le categorie in lista sono quelle che hai gia' usato e quelle con un
+   * limite, non le proposte: un limite su "Auto" senza nessun esercente
+   * etichettato Auto resterebbe a zero per sempre, e sembrerebbe un mese
+   * virtuoso. Il campo non si ridisegna mentre ci si scrive: si aggiornano
+   * solo la barra e il conto sotto, come per il riquadro del tetto.
+   */
+  function limitiCategoria() {
+    const mese = oggiIso().slice(0, 7);
+    const usate = [...new Set([
+      ...Object.values(config.categorie ?? {}).filter(Boolean),
+      ...Object.keys(config.limiti ?? {}),
+    ])].sort((a, b) => a.localeCompare(b, 'it'));
+
+    if (!usate.length) {
+      return el('div', { class: 'sezione' }, [
+        el('div', { class: 'titolo-sezione', testo: 'Limiti per categoria' }),
+        el('div', { class: 'carta' }, [el('div', { class: 'esito' }, [
+          'Le categorie si scelgono toccando una spesa, o un esercente in Analisi. '
+          + 'Quando ce ne sono, qui puoi dare a ognuna un tetto per il mese.',
+        ])]),
+      ]);
+    }
+
+    const righe = usate.map((categoria) => {
+      const sotto = el('div');
+      const input = campoEuro(config.limiti?.[categoria], (v) => {
+        scrivendo({ limiti: { ...(config.limiti ?? {}), [categoria]: v } });
+      });
+      limitiDinamici.push(() => {
+        const b = budgetCategorie(config, registro, mese, oggiIso());
+        const riga = b.righe.find((c) => c.categoria === categoria);
+        const libera = b.senzaLimite.find((c) => c.categoria === categoria);
+        if (!riga) {
+          sotto.replaceChildren(el('div', { class: 'conto' }, [
+            el('span', { class: 'soldi', testo: `${euro(libera?.speso ?? 0)} questo mese` }),
+            el('span', { testo: 'nessun limite' }),
+          ]));
+          return;
+        }
+        sotto.replaceChildren(
+          el('div', { class: `metro ${riga.stato}` + (riga.resto < 0 ? ' sotto-zero' : '') }, [
+            el('span', { style: `width:${(Math.min(1, riga.quota) * 100).toFixed(1)}%` }),
+          ]),
+          el('div', { class: 'conto' }, [
+            el('span', { class: 'soldi', testo: `${euro(riga.speso)} di ${euro(riga.limite)}` }),
+            el('span', { class: `soldi ${riga.stato}`, testo: riga.resto < 0
+              ? `${euro(-riga.resto)} oltre`
+              : riga.alGiorno !== null ? `restano ${euro(riga.resto)} · ${euro(riga.alGiorno)} al giorno`
+                : `restano ${euro(riga.resto)}` }),
+          ]),
+        );
+      });
+      return el('div', { class: 'limite' }, [
+        el('div', { class: 'fila' }, [el('label', { testo: categoria }), input]),
+        sotto,
+      ]);
+    });
+
+    const piede = el('div', { class: 'avviso' });
+    limitiDinamici.push(() => {
+      const b = budgetCategorie(config, registro, mese, oggiIso());
+      const frasi = [];
+      if (b.disponibile > 0 && b.assegnato > 0) {
+        frasi.push(b.daAssegnare >= 0
+          ? `Assegnati ${euro(b.assegnato)} su ${euro(b.disponibile)} del mese: ${euro(b.daAssegnare)} restano liberi.`
+          : `I limiti sommano ${euro(b.assegnato)}, ${euro(-b.daAssegnare)} piu’ di quello che il mese ha per i giorni.`);
+      }
+      if (b.senzaCategoria.totale > 0) {
+        frasi.push(`${euro(b.senzaCategoria.totale)} di spese questo mese non hanno ancora una categoria.`);
+      }
+      // La regola che conta, detta ogni volta che si guarda un limite: il
+      // tetto del giorno non si divide in scatole.
+      frasi.push('Il tetto giornaliero non cambia: segue il totale, i limiti dicono solo dove vanno i soldi.');
+      piede.replaceChildren(frasi.join(' '));
+    });
+
+    return el('div', { class: 'sezione' }, [
+      el('div', { class: 'titolo-sezione', testo: 'Limiti per categoria' }),
+      el('div', { class: 'carta' }, [...righe, piede]),
+    ]);
+  }
+
+  const limiti = limitiCategoria();
   disegnaConto();
 
   return el('div', {}, [
+    piano,
+
     el('div', { class: 'sezione' }, [
       el('div', { class: 'titolo-sezione', testo: 'Entrate' }),
       el('div', { class: 'carta' }, [
@@ -282,6 +419,8 @@ export function vistaBudget(registroIniziale, configIniziale, setConfig, setRegi
       el('div', { class: 'titolo-sezione', testo: 'Il tetto' }),
       conto,
     ]),
+
+    limiti,
 
     mesiRisparmio(),
 

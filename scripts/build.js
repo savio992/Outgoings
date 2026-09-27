@@ -39,6 +39,20 @@ if (mancanti.length) {
   process.exit(1);
 }
 
+// E il verso opposto: un modulo che il service worker non conosce non finisce
+// in cache, e offline l'import fallisce - l'app resta bianca in metropolitana,
+// proprio dove doveva servire. Succedeva gia' ad Analisi senza che nessuno se
+// ne accorgesse, perche' con la rete tutto funziona lo stesso.
+const moduli = fs.readdirSync(path.join(dist, 'src'), { recursive: true })
+  .map((f) => path.join('src', String(f)).split(path.sep).join('/'))
+  .filter((f) => /\.(js|css)$/.test(f));
+const dimenticati = moduli.filter((f) => !elencati.includes(f));
+if (dimenticati.length) {
+  console.error('Moduli che il service worker non mette in cache:');
+  for (const f of dimenticati) console.error('  ' + f);
+  process.exit(1);
+}
+
 // Il nome della cache porta l'impronta dei file. Senza, una versione fissa
 // scritta a mano prima o poi non viene aggiornata, il vecchio service worker
 // continua a servire i file vecchi e la correzione appena pubblicata non arriva

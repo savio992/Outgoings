@@ -155,6 +155,23 @@ sa. Nelle notifiche il verso non e' un segno ma una parola, e di notifiche di
 accredito vere non ne abbiamo ancora vista una: finche' e' cosi' quella lettura
 vale un controllo a mano.
 
+**I limiti per categoria sono una lente, non un secondo budget.** Il tetto
+giornaliero segue il totale del flessibile e non cambia se una categoria sfora:
+cento euro in piu' al ristorante sono cento euro in meno per tutto il resto, e
+il tetto lo sa gia'. Dividere il conto in scatole che non si parlano vorrebbe
+dire due numeri diversi per la stessa domanda. I limiti dicono *dove* vanno i
+soldi (`budgetCategorie` in `budget.js`), e la categoria resta quella che
+l'utente ha scelto per l'esercente - la si puo' scegliere anche dal foglio di
+una spesa sola, ma vale per tutte quelle dello stesso posto
+(`impostaCategoria` in `statistiche.js`).
+
+**Una ricorrenza si vede, non si indovina.** Le uscite fisse "in arrivo" sono
+quelle che il registro ha visto passare (`ricorrenti.js`). Vista in due mesi e'
+una ricorrenza e pesa su "mancano"; vista una volta si mostra dicendolo e non
+pesa, perche' poteva essere l'ultima rata. Una fissa che non si vede da piu' di
+un mese esce dalla lista. Lo stesso vale per i confronti: il mese scorso si
+mette accanto a questo solo se il registro lo copre intero.
+
 **Il gateway non e' l'esercente.** "SumUp *Gocce di caffe" e' il bar sotto casa.
 Senza togliere il prefisso lo stesso posto compare con due nomi a seconda del
 terminale, e nel registro sembrano due esercenti.
@@ -169,10 +186,14 @@ terminale, e nel registro sembrano due esercenti.
       banca.js       estratto conto: la sorgente piu' precisa delle tre
       xlsx.js        legge il .xlsx della banca: ZIP, XML, seriali di Excel
       export.js      interfaccia Destinazione, oggi solo Actual Budget
-      budget.js      stipendio, uscite fisse, risparmio, tetto a recupero
-      statistiche.js gruppi per esercente, ricorrenze, giorni della settimana
+      budget.js      stipendio, uscite fisse, risparmio, tetto a recupero,
+                     andamento del mese, piano dello stipendio, limiti per categoria
+      statistiche.js gruppi per esercente, categorie, flussi di cassa
+      ricorrenti.js  le uscite fisse del mese: pagate, in arrivo, attese
+      ricerca.js     trovare una spesa senza sapere in che mese
     src/ui/        DOM: nessuna logica, solo come si mostra
       aggiungi.js    la spesa scritta a mano: l'unica sorgente senza un OCR dietro
+      categorie.js   la scelta della categoria, condivisa dai due fogli
     web/           manifest, service worker, icone
     test/          node --test
 
@@ -190,7 +211,20 @@ in `src/app.js` (`NOME`), nel manifest e in `index.html`, e da nessun'altra
 parte. "Outgoings" come marchio non reggerebbe: in inglese significa
 letteralmente "spese", ed e' quindi descrittivo.
 
+## L'aspetto
+
+Il modello e' Monarch: fondo caldo quasi bianco, carte bianche con un filo di
+bordo, un arancio solo per il marchio e per cio' che si tocca, lo stato detto
+da barre di avanzamento e pastiglie invece che da blocchi dipinti. I token
+stanno in cima a `src/styles.css`; le arance sono tre (`--accento` per le
+barre, `--accento-pieno` per i tasti, `--accento-testo` per il testo) perche'
+quella del marchio col bianco sopra non arriva al contrasto minimo.
+
 ## Il service worker
+
+Ogni modulo in `src/` va elencato in `FILE` dentro `web/sw.js`: il build
+fallisce se ne manca uno, perche' un modulo fuori cache rompe l'app offline
+senza che con la rete si veda niente.
 
 `VERSIONE` in `web/sw.js` e `src/versione.js` vengono riscritte dal build con
 l'impronta dei file. Non metterci un numero a mano: una versione che non cambia

@@ -1,11 +1,15 @@
-// La schermata di apertura risponde a una domanda sola: quanto posso ancora
-// spendere oggi.
+// La schermata di apertura, fatta come la dashboard di Monarch: una pila di
+// carte, ognuna una domanda. La prima e' quella per cui l'app esiste - quanto
+// posso ancora spendere oggi - e le altre la spiegano allargando lo sguardo:
+// la settimana, il mese contro il mese scorso, le uscite fisse che devono
+// ancora passare, i soldi sul conto.
 //
-// Il numero sta su un blocco colorato che cambia tinta con lo stato del budget,
-// invece che su una carta bianca come tutto il resto: e' l'unica cosa che si
-// guarda entrando, e deve essere la prima che si vede. Sotto, sette barre
-// dicono se oggi e' un'eccezione o l'ennesimo giorno uguale - un numero solo non
-// lo puo' dire.
+// Il numero grande sta su carta bianca come tutto il resto, e lo stato lo
+// dicono la barra e la pastiglia accanto. Il blocco dipinto di prima si vedeva
+// di piu', ma diceva una cosa sola a tutta la schermata; qui il colore sta
+// dove sta l'informazione, e una carta rossa in mezzo alle altre si nota.
+// Sotto, sette barre dicono se oggi e' un'eccezione o l'ennesimo giorno uguale
+// - un numero solo non lo puo' dire.
 //
 // Le barre si toccano, e sopra ognuna c'e' il tetto che quel giorno aveva. Sono
 // la stessa risposta della testata guardata all'indietro: quanto si poteva
@@ -13,9 +17,11 @@
 // e' un numero deciso da qualcuno e non ha senso impararlo a memoria - si
 // capisce solo vedendolo muovere.
 
-import { el, euro, euroTondo, oggiIso, nomeGiorno, siglaGiorno, dataBreve, anima } from './comune.js';
-import { statoGiorno, mediaGiornaliera, strisciaSettimana, saldoStimato } from '../domain/budget.js';
+import { el, euro, euroTondo, oggiIso, nomeGiorno, siglaGiorno, siglaMese, dataBreve, nomeMese, anima } from './comune.js';
+import { statoGiorno, mediaGiornaliera, strisciaSettimana, saldoStimato, andamentoDelMese } from '../domain/budget.js';
 import { giornoDi } from '../domain/registro.js';
+import { categoriaDi } from '../domain/statistiche.js';
+import { ricorrenti } from '../domain/ricorrenti.js';
 import { spesa, elencoVuoto } from './registro.js';
 
 /**
@@ -45,8 +51,11 @@ function umore(s) {
   return s.soglia > 0 && s.spesoOggi / s.soglia >= .6 ? 'attento' : 'sereno';
 }
 
+/** La parola della pastiglia: lo stesso stato di `umore`, detto a chi non vede il colore. */
+const PAROLE = { sereno: 'In linea', attento: 'Attenzione', oltre: 'Oltre', neutro: 'Senza budget' };
+
 /**
- * Il numero grande e le due righe che lo spiegano.
+ * Il numero grande e le righe che lo spiegano.
  *
  * Quando il mese e' gia' sfondato il tetto di oggi vale zero, e mostrarlo -
  * "0,00 € spesi su 0,00 €" - non e' un'informazione: dice solo che oggi non
@@ -55,50 +64,64 @@ function umore(s) {
  * a "quanto posso ancora spendere".
  */
 function testata(s) {
+  const stato = umore(s);
   const sfondato = s.attiva && s.restoMese < 0;
-  const cifra = el('div', { class: 'grande soldi' });
+  const cifra = el('div', { class: 'grande soldi' + (s.attiva && (sfondato || s.residuo < 0) ? ' oltre' : '') });
   const quanto = !s.attiva ? s.spesoOggi
     : sfondato ? Math.abs(s.restoMese) : Math.abs(s.residuo);
   if (contaSu) anima(cifra, quanto, (n) => euro(n));
   else cifra.textContent = euro(quanto);
 
-  // La barra e' la stessa informazione dell'anello di prima, ma leggibile anche
-  // quando la quota e' minuscola: una tacca che parte da sinistra si vede, un
-  // arco del tre per cento no.
+  // Una tacca che parte da sinistra si vede anche quando la quota e'
+  // minuscola, dove un arco del tre per cento no.
   const quota = !s.attiva ? 0
     : sfondato ? 1
       : s.soglia > 0 ? Math.min(1, Math.max(0, s.spesoOggi / s.soglia)) : 0;
 
   const sotto = !s.attiva
-    ? (s.troppoRisparmio
+    ? [el('span', { testo: s.troppoRisparmio
       ? `Fra uscite fisse e ${euro(s.risparmio)} da mettere da parte non resta niente per i giorni`
-      : 'Imposta stipendio e uscite fisse per avere un tetto giornaliero')
+      : 'Imposta stipendio e uscite fisse in Budget per avere un tetto giornaliero' })]
     : sfondato
-      ? `${euro(s.spesoMese)} spesi su ${euro(s.disponibile)} del mese`
-      : `${euro(s.spesoOggi)} spesi su ${euro(s.soglia)}`;
+      ? [el('span', {}, [el('b', { class: 'soldi', testo: euro(s.spesoMese) }), ' spesi nel mese']),
+        el('span', { class: 'soldi', testo: `su ${euro(s.disponibile)}` })]
+      : [el('span', {}, [el('b', { class: 'soldi', testo: euro(s.spesoOggi) }), ' spesi oggi']),
+        el('span', { class: 'soldi', testo: `tetto ${euro(s.soglia)}` })];
 
-  return el('div', { class: `testata ${umore(s)}` }, [
-    el('div', { class: 'occhiello', testo: !s.attiva ? 'spesi oggi'
-      : sfondato ? 'il mese e’ gia’ oltre'
-        : s.residuo < 0 ? 'oltre il tetto di oggi' : 'puoi ancora spendere' }),
+  // Il tetto si capisce quando lo si vede muovere, e muoverlo e' quello che
+  // sta succedendo adesso: la spesa di oggi non toglie soldi a un mese
+  // lontano, toglie a domani. Detto prima puo' ancora cambiare la decisione;
+  // detto domani e' solo una brutta sorpresa.
+  //
+  // A mese gia' sfondato non si dice: il tetto e' zero e resta zero, e
+  // "domani scende a 0,00 €" non insegna niente che la riga sopra non abbia
+  // gia' detto.
+  const verso = s.sogliaDomani > s.soglia ? 'su' : s.sogliaDomani < s.soglia ? 'giu' : 'pari';
+  const domani = s.attiva && !sfondato && s.sogliaDomani !== null
+    ? el('div', { class: 'spiega' }, [
+      el('span', { class: `freccia ${verso}`, 'aria-hidden': 'true', testo: verso === 'su' ? '↗' : verso === 'giu' ? '↘' : '→' }),
+      el('span', {}, [
+        'Se chiudi qui, domani il tetto ',
+        verso === 'su' ? 'sale' : verso === 'giu' ? 'scende' : 'resta',
+        ' a ',
+        el('b', { class: 'soldi', testo: euro(s.sogliaDomani) }),
+      ]),
+    ])
+    : null;
+
+  return el('div', { class: 'eroe' }, [
+    el('div', { class: 'sopra' }, [
+      el('div', { class: 'occhiello', testo: !s.attiva ? 'Spesi oggi'
+        : sfondato ? 'Il mese e’ gia’ oltre di'
+          : s.residuo < 0 ? 'Oltre il tetto di oggi' : 'Puoi ancora spendere oggi' }),
+      el('span', { class: `pastiglia ${stato}`, testo: PAROLE[stato] }),
+    ]),
     cifra,
-    s.attiva ? el('div', { class: 'barra' }, [
+    s.attiva ? el('div', { class: `metro spesso ${stato}` }, [
       el('span', { style: `width:${(quota * 100).toFixed(1)}%` }),
     ]) : null,
-    el('div', { class: 'sottotitolo' }, [sotto]),
-    // Il tetto si capisce quando lo si vede muovere, e muoverlo e' quello che
-    // sta succedendo adesso: la spesa di oggi non toglie soldi a un mese
-    // lontano, toglie a domani. Detto prima puo' ancora cambiare la decisione;
-    // detto domani e' solo una brutta sorpresa.
-    //
-    // A mese gia' sfondato non si dice: il tetto e' zero e resta zero, e
-    // "domani scende a 0,00 €" non insegna niente che la riga sopra non abbia
-    // gia' detto.
-    s.attiva && !sfondato && s.sogliaDomani !== null
-      ? el('div', { class: 'spiega', testo: `Se chiudi qui, domani il tetto `
-        + `${s.sogliaDomani > s.soglia ? 'sale' : s.sogliaDomani < s.soglia ? 'scende' : 'resta'} `
-        + `a ${euro(s.sogliaDomani)}` })
-      : null,
+    el('div', { class: 'sotto' }, sotto),
+    domani,
   ]);
 }
 
@@ -110,7 +133,7 @@ function testata(s) {
  * Sono due domande diverse e due ritmi diversi - una si guarda entrando in un
  * bar, l'altra il venerdi' sera.
  */
-function soldi(s, saldo) {
+function soldi(s, saldo, daPagare) {
   if (!saldo && !s.risparmio) return null;
 
   const fatto = Math.max(0, Math.min(s.risparmio, s.messoDaParte));
@@ -125,7 +148,7 @@ function soldi(s, saldo) {
   const scostato = saldo && saldo.movimentiDopo > 0;
 
   return el('div', { class: `carta sezione risparmio ${s.risparmio ? stato : ''}` }, [
-    saldo ? el('div', { class: 'giorno' }, [
+    saldo ? el('div', { class: 'testa-carta' }, [
       el('span', { testo: scostato ? 'Sul conto · stimato' : 'Sul conto' }),
       el('span', {
         // Il rosso qui vuol dire una cosa sola: il conto e' sotto zero. Se lo
@@ -139,6 +162,12 @@ function soldi(s, saldo) {
       ? `${euro(saldo.dichiarato)} al ${dataBreve(saldo.al)} secondo la banca, meno `
         + `${saldo.movimentiDopo} ${saldo.movimentiDopo === 1 ? 'movimento' : 'movimenti'} che ha visto solo l’app.`
       : `Come lo scrive la banca, al ${dataBreve(saldo.al)}.` }) : null,
+    // Le fisse che devono ancora passare non sono nel saldo, e il saldo sembra
+    // piu' alto di quello che e'. E' una stima sopra una stima, quindi sta su
+    // una riga sua e si chiama col suo nome - il saldo resta quello di sopra.
+    saldo && daPagare > 0 ? el('div', { class: 'nota', testo:
+      `Tolte le uscite fisse ancora da passare questo mese (${euro(daPagare)}), `
+      + `restano circa ${euro(saldo.stimato - daPagare)}.` }) : null,
     // Un saldo vecchio non e' sbagliato, e' scaduto: dirlo costa una riga e
     // evita di far passare per il conto di oggi quello di tre settimane fa.
     saldo && saldo.giorni >= 10
@@ -148,7 +177,7 @@ function soldi(s, saldo) {
 
     s.risparmio && saldo ? el('div', { class: 'divisorio' }) : null,
 
-    s.risparmio ? el('div', { class: 'giorno' }, [
+    s.risparmio ? el('div', { class: 'testa-carta' }, [
       el('span', { testo: 'Da parte questo mese' }),
       el('span', {
         class: 'totale soldi obiettivo',
@@ -158,7 +187,9 @@ function soldi(s, saldo) {
         testo: s.messoDaParte < 0 ? euro(s.messoDaParte) : `${euro(fatto)} di ${euro(s.risparmio)}`,
       }),
     ]) : null,
-    s.risparmio ? el('div', { class: 'barra' }, [el('span', { style: `width:${(quota * 100).toFixed(1)}%` })]) : null,
+    s.risparmio ? el('div', { class: `metro ${stato}` + (s.messoDaParte < 0 ? ' sotto-zero' : '') }, [
+      el('span', { style: `width:${(quota * 100).toFixed(1)}%` }),
+    ]) : null,
     s.risparmio ? el('div', { class: 'nota', testo: s.messoDaParte < 0
       ? 'Il mese ha gia’ mangiato l’obiettivo: quello che spendi da qui in avanti esce dai risparmi.'
       : s.messoDaParte >= s.risparmio
@@ -176,18 +207,23 @@ function soldi(s, saldo) {
  * la cambia. Cosi' il grafico si legge anche senza toccarlo.
  */
 function scelta(g) {
-  const quanto = g.totale > 0 ? euro(g.totale) : null;
   return el('div', { class: 'scelta' }, [
-    el('div', { class: 'giorno' }, [
-      el('span', { testo: nomeGiorno(g.giorno) }),
-      quanto ? el('span', { class: 'totale soldi', testo: quanto }) : null,
+    el('span', {}, [
+      el('b', { testo: nomeGiorno(g.giorno) }),
+      ' · ',
+      el('span', { class: 'soldi', testo: g.totale > 0 ? euro(g.totale) : 'niente speso' }),
     ]),
     // Senza budget non c'e' nessun tetto da confrontare, e inventare una riga
     // pur di averla direbbe meno di niente.
     g.soglia > 0
-      ? el('div', { class: 'nota' + (g.oltre ? ' oltre' : ''), testo:
-        `Tetto ${euro(g.soglia)} · ` + (g.totale === 0 ? 'niente speso'
-          : g.oltre ? `${euro(-g.residuo)} oltre` : `${euro(g.residuo)} sotto`) })
+      ? el('span', { class: 'soldi' }, [
+        `tetto ${euro(g.soglia)}`,
+        g.totale > 0 ? ' · ' : null,
+        g.totale > 0 ? el('span', {
+          class: g.oltre ? 'oltre' : 'sotto',
+          testo: g.oltre ? `${euro(-g.residuo)} oltre` : `${euro(g.residuo)} sotto`,
+        }) : null,
+      ])
       : null,
   ]);
 }
@@ -215,6 +251,10 @@ function settimana(registro, config, s, giorni, giorno, ridisegna) {
   const cima = Math.max(massimo * 1.2, tetto > 0 && tetto <= massimo * 1.5 ? tetto * 1.15 : 0);
 
   return el('div', { class: 'carta sezione settimana' }, [
+    el('div', { class: 'testa-carta' }, [
+      el('span', { testo: 'Ultimi 7 giorni' }),
+      tetto > 0 ? el('span', { class: 'legenda' }, [el('span', {}, [el('i', { class: 'tetto' }), 'tetto del giorno'])]) : null,
+    ]),
     el('div', { class: 'grafico' }, giorni.map((g, i) => el('button', {
       class: 'gambo' + (g.giorno === giorno ? ' oggi' : '') + (g.giorno === scelto ? ' scelto' : ''),
       type: 'button',
@@ -270,6 +310,178 @@ function settimana(registro, config, s, giorni, giorno, ridisegna) {
   ]);
 }
 
+const SVG = 'http://www.w3.org/2000/svg';
+function svg(tag, attributi = {}) {
+  const nodo = document.createElementNS(SVG, tag);
+  for (const [k, v] of Object.entries(attributi)) if (v !== null && v !== undefined) nodo.setAttribute(k, v);
+  return nodo;
+}
+
+/**
+ * Il mese a somme crescenti, contro il mese scorso: la carta "Spending" di
+ * Monarch.
+ *
+ * La barra dei sette giorni dice com'e' andato ogni giorno; questa dice dove
+ * porta la somma. La retta tratteggiata e' il disponibile spalmato uguale su
+ * tutti i giorni: stare sotto vuol dire che il tetto dei giorni dopo sale,
+ * stare sopra che scende. E' la stessa regola del numero grande, vista da
+ * lontano.
+ *
+ * Toccare il grafico sposta la riga sotto su quel giorno, senza ridisegnare
+ * niente: la cifra grande e le altre carte restano ferme, e il dito puo'
+ * scorrere lungo il mese.
+ */
+function andamento(a) {
+  if (!a.questo.some((v) => v > 0) && !a.precedente.some((v) => v > 0)) return null;
+
+  const L = 320;
+  const A = 150;
+  const n = a.giorni;
+  const x = (d) => ((d - 1) / Math.max(1, n - 1)) * L;
+  const alRitmo = (d) => (a.disponibile * d) / n;
+  const cima = Math.max(
+    ...a.questo, ...a.precedente,
+    a.ritmo !== null ? alRitmo(Math.min(n, a.oggi + 3)) : 0,
+    1,
+  ) * 1.12;
+  const y = (v) => A - (v / cima) * (A - 6);
+  const linea = (valori) => valori.map((v, i) => `${i ? 'L' : 'M'}${x(i + 1).toFixed(1)} ${y(v).toFixed(1)}`).join(' ');
+
+  const speso = a.questo[a.oggi - 1] ?? 0;
+  const disegno = svg('svg', { viewBox: `0 0 ${L} ${A}`, preserveAspectRatio: 'none', 'aria-hidden': 'true' });
+  for (const f of [0.5, 1]) disegno.append(svg('line', { class: 'griglia', x1: 0, x2: L, y1: y(cima * f / 1.12), y2: y(cima * f / 1.12) }));
+  disegno.append(svg('line', { class: 'griglia', x1: 0, x2: L, y1: A - 0.5, y2: A - 0.5 }));
+  if (a.precedente.length) disegno.append(svg('path', { class: 'scorso', d: linea(a.precedente), 'vector-effect': 'non-scaling-stroke' }));
+  if (a.ritmo !== null) {
+    disegno.append(svg('path', {
+      class: 'ritmo', 'vector-effect': 'non-scaling-stroke',
+      d: `M${x(1)} ${y(alRitmo(1)).toFixed(1)} L${x(n)} ${y(alRitmo(n)).toFixed(1)}`,
+    }));
+  }
+  disegno.append(svg('path', {
+    class: 'area',
+    d: `${linea(a.questo)} L${x(a.oggi).toFixed(1)} ${A} L${x(1)} ${A} Z`,
+  }));
+  disegno.append(svg('path', { class: 'questo', d: linea(a.questo), 'vector-effect': 'non-scaling-stroke' }));
+
+  // La guida e i punti del giorno scelto, dentro lo stesso disegno. I punti
+  // sono cerchi in un SVG deformato: con `preserveAspectRatio: none` un cerchio
+  // diventa un'ellisse, quindi stanno fuori, sopra, in coordinate vere.
+  const guida = svg('line', { class: 'guida', y1: 0, y2: A, 'vector-effect': 'non-scaling-stroke' });
+  disegno.append(guida);
+  const puntoQuesto = el('span', { class: 'punto-html questo-p' });
+  const puntoScorso = el('span', { class: 'punto-html scorso-p' });
+  const didascalia = el('div', { class: 'scelta' });
+
+  const mostra = (d) => {
+    const qui = d <= a.oggi ? a.questo[d - 1] : null;
+    const prima = d <= a.precedente.length ? a.precedente[d - 1] : null;
+    guida.setAttribute('x1', x(d));
+    guida.setAttribute('x2', x(d));
+    const metti = (punto, v) => {
+      punto.hidden = v === null;
+      if (v !== null) {
+        punto.style.left = `${(x(d) / L) * 100}%`;
+        punto.style.top = `${(y(v) / A) * 100}%`;
+      }
+    };
+    metti(puntoQuesto, qui);
+    metti(puntoScorso, prima);
+    didascalia.replaceChildren(
+      el('span', {}, [
+        el('b', { testo: `${d} ${siglaMese(a.mese)}` }),
+        ' · ',
+        el('span', { class: 'soldi', testo: qui === null ? 'deve ancora venire' : euro(qui) }),
+      ]),
+      el('span', { class: 'soldi' }, [
+        prima !== null ? `${siglaMese(a.scorso)} ${euro(prima)}` : null,
+        prima !== null && a.ritmo !== null ? ' · ' : null,
+        a.ritmo !== null ? `ritmo ${euroTondo(alRitmo(d))}` : null,
+      ]),
+    );
+  };
+
+  const area = el('div', { class: 'linee', role: 'img',
+    'aria-label': `Speso nel mese: ${euro(speso)}` + (a.confronto ? `, ${siglaMese(a.scorso)} allo stesso giorno ${euro(a.confronto.scorso)}` : '') }, [
+    disegno, puntoScorso, puntoQuesto,
+  ]);
+  const tocca = (e) => {
+    const r = area.getBoundingClientRect();
+    const quota = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+    mostra(Math.round(quota * (n - 1)) + 1);
+  };
+  area.addEventListener('pointerdown', tocca);
+  area.addEventListener('pointermove', (e) => { if (e.buttons || e.pointerType !== 'mouse') tocca(e); });
+  mostra(a.oggi);
+
+  // Il confronto a parole, solo quando e' onesto farlo.
+  const confronto = a.confronto
+    ? a.confronto.differenza === 0
+      ? [`Come ${nomeMese(a.scorso).split(' ')[0].toLowerCase()} allo stesso giorno.`]
+      : [el('b', {
+        class: a.confronto.differenza < 0 ? 'meno' : 'piu',
+        testo: `${euro(Math.abs(a.confronto.differenza))} ${a.confronto.differenza < 0 ? 'in meno' : 'in piu’'}`,
+      }), ` di ${nomeMese(a.scorso).split(' ')[0].toLowerCase()} allo stesso giorno.`]
+    : a.precedente.some((v) => v > 0)
+      ? [`${nomeMese(a.scorso).split(' ')[0]} il registro lo vede solo in parte: niente confronto.`]
+      : null;
+  const ritmo = a.ritmo !== null
+    ? [speso <= a.ritmo ? 'Sotto' : 'Sopra', ' il ritmo del budget, che oggi e’ ', el('b', { class: 'soldi', testo: euro(a.ritmo) }), '.']
+    : null;
+
+  return el('div', { class: 'carta sezione andamento' }, [
+    el('div', { class: 'testa-carta' }, [
+      el('span', { testo: 'Spese del mese' }),
+      el('span', { class: 'totale', testo: nomeMese(a.mese) }),
+    ]),
+    el('div', { class: 'cifra soldi', testo: euro(speso) }),
+    confronto ? el('div', { class: 'confronto' }, confronto) : null,
+    ritmo ? el('div', { class: 'confronto' }, ritmo) : null,
+    el('div', { class: 'legenda' }, [
+      el('span', {}, [el('i'), siglaMese(a.mese)]),
+      a.precedente.length ? el('span', {}, [el('i', { class: 'scorso' }), siglaMese(a.scorso)]) : null,
+      a.ritmo !== null ? el('span', {}, [el('i', { class: 'ritmo' }), 'ritmo del budget']) : null,
+    ]),
+    area,
+    el('div', { class: 'assi' }, [el('span', { testo: '1' }), el('span', { testo: String(Math.ceil(n / 2)) }), el('span', { testo: String(n) })]),
+    didascalia,
+  ]);
+}
+
+/**
+ * Le uscite fisse del mese: quali sono passate e quali devono ancora.
+ *
+ * E' la carta "Recurring" di Monarch, ma senza indovinare: le ricorrenze sono
+ * quelle che il registro ha visto ripetersi, e una vista una volta sola si
+ * mostra dicendolo. Il tetto giornaliero non le conta; il conto si'.
+ */
+function fisseDelMese(r) {
+  if (!r.voci.length) return null;
+  const incerte = r.voci.some((v) => !v.certa && v.stato !== 'pagata');
+  return el('div', { class: 'carta sezione' }, [
+    el('div', { class: 'testa-carta' }, [
+      el('span', { testo: 'Uscite fisse' }),
+      el('span', { class: 'totale soldi', testo: r.daPagare > 0 ? `mancano ${euro(r.daPagare)}` : 'nessuna in attesa' }),
+    ]),
+    ...r.voci.map((v) => el('div', { class: `spesa ricorrente ${v.stato === 'pagata' ? 'pagata' : ''}` }, [
+      el('span', {
+        class: `icona-stato ${v.stato === 'pagata' ? 'pagata' : v.stato === 'attesa' ? 'attesa' : ''}`,
+        'aria-hidden': 'true',
+        testo: v.stato === 'pagata' ? '✓' : String(Number(v.prevista.slice(8, 10))),
+      }),
+      el('span', { class: 'nome' }, [
+        el('b', { testo: v.causale ? `${v.nome} · ${v.causale}` : v.nome }),
+        el('small', { testo: v.stato === 'pagata' ? `passata il ${dataBreve(v.prevista)}`
+          : v.stato === 'attesa' ? `attesa dal ${dataBreve(v.prevista)}, non ancora vista`
+            : `attesa il ${dataBreve(v.prevista)}` + (v.certa ? '' : ' · vista una volta') }),
+      ]),
+      el('span', { class: 'importo soldi fissa', testo: euro(v.stato === 'pagata' ? v.pagatoQuestoMese : v.importo) }),
+    ])),
+    incerte ? el('div', { class: 'nota fioco', style: 'padding-bottom:14px', testo:
+      'Quelle viste una volta sola non entrano in “mancano”: un ritmo si riconosce dal secondo mese.' }) : null,
+  ]);
+}
+
 export function vistaOggi(registro, config, alTocco, ridisegna) {
   const giorno = oggiIso();
   const s = statoGiorno(config, registro, giorno);
@@ -281,6 +493,8 @@ export function vistaOggi(registro, config, alTocco, ridisegna) {
   if (!giorni.some((g) => g.giorno === scelto)) scelto = giorno;
   const mostrato = giorni.find((g) => g.giorno === scelto);
   const spese = registro.filter((t) => giornoDi(t) === scelto);
+  const ric = ricorrenti(registro, giorno);
+  const fisse = fisseDelMese(ric);
 
   const vista = el('div', {}, [
     el('div', { class: 'sezione' }, [
@@ -298,17 +512,21 @@ export function vistaOggi(registro, config, alTocco, ridisegna) {
 
     settimana(registro, config, s, giorni, giorno, ridisegna),
 
-    soldi(s, saldoStimato(config, registro, giorno)),
+    andamento(andamentoDelMese(config, registro, giorno)),
+
+    fisse,
+
+    soldi(s, saldoStimato(config, registro, giorno), ric.daPagare),
 
     // L'elenco segue la barra toccata. La testata no: risponde a "quanto posso
     // spendere oggi", e oggi resta oggi qualunque giorno si stia guardando.
     el('div', { class: 'sezione' }, [
       el('div', { class: 'carta' }, [
-        el('div', { class: 'giorno' }, [
-          el('span', { testo: nomeGiorno(scelto) }),
+        el('div', { class: 'testa-carta' }, [
+          el('span', { testo: scelto === giorno ? 'Spese di oggi' : nomeGiorno(scelto) }),
           spese.length ? el('span', { class: 'totale soldi', testo: euro(mostrato.totale) }) : null,
         ]),
-        ...(spese.length ? spese.map((t) => spesa(t, alTocco))
+        ...(spese.length ? spese.map((t) => spesa(t, alTocco, undefined, categoriaDi(t, config)))
           : [elencoVuoto(scelto === giorno ? 'Nessuna spesa oggi. Per ora.' : 'Nessuna spesa in questo giorno.')]),
       ]),
     ]),

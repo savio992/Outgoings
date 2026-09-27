@@ -9,6 +9,8 @@ import { el, euro, leggiNumero } from './comune.js';
 import { correggi, elimina } from '../domain/registro.js';
 import { chiaveFissa } from '../domain/banca.js';
 import { isoDelGiorno } from '../domain/tempo.js';
+import { categoriaDi, impostaCategoria } from '../domain/statistiche.js';
+import { sceltaCategoria } from './categorie.js';
 
 /**
  * Tiene aggiornato l'elenco di cio' che al prossimo import vale come uscita
@@ -50,6 +52,12 @@ export function apriModifica(transazione, registro, salva, config, salvaConfig) 
   const fissa = el('input', { type: 'checkbox', class: 'interruttore' });
   fissa.checked = Boolean(transazione.fissa);
 
+  // La categoria sta sull'esercente, non su questa riga: sceglierla qui vuol
+  // dire sceglierla per tutte le spese dello stesso posto, passate e future.
+  // Si tiene da parte e si scrive al Salva, insieme a tutto il resto - due
+  // salvataggi separati della configurazione si mangerebbero a vicenda.
+  let categoria = categoriaDi(transazione, config);
+
   const salvaModifiche = () => {
     const valore = leggiNumero(importo.value);
     if (!nome.value.trim() || !Number.isFinite(valore) || valore <= 0 || !giorno.value) {
@@ -64,7 +72,14 @@ export function apriModifica(transazione, registro, salva, config, salvaConfig) 
       : [0, 0];
 
     const nuovoNome = nome.value.trim();
-    if (salvaConfig) ricordaFissa(config, nuovoNome, transazione.causale, fissa.checked, salvaConfig);
+    if (salvaConfig) {
+      // Col nome cambiato la categoria va sul nome nuovo: e' li' che la
+      // cerchera' il prossimo conto.
+      const conCategoria = categoria === categoriaDi({ merchant: nuovoNome }, config)
+        ? config
+        : impostaCategoria(config, nuovoNome, categoria);
+      ricordaFissa(conCategoria, nuovoNome, transazione.causale, fissa.checked, salvaConfig);
+    }
 
     salva(correggi(registro, transazione.id, {
       merchant: nuovoNome,
@@ -104,6 +119,17 @@ export function apriModifica(transazione, registro, salva, config, salvaConfig) 
         ]),
         fissa,
       ]),
+    ]),
+
+    // Un accredito non ha categoria: le categorie dicono dove vanno i soldi.
+    transazione.entrata || !salvaConfig ? null : el('div', { class: 'titolo-sezione', testo: 'Categoria' }),
+    transazione.entrata || !salvaConfig ? null : el('div', { class: 'carta' }, [
+      el('div', { class: 'campo' }, [
+        el('span', { class: 'campo-testo' }, [
+          el('small', { testo: `Vale per tutte le spese da «${transazione.merchant}», anche le prossime.` }),
+        ]),
+      ]),
+      sceltaCategoria(config, categoria, (c) => { categoria = c; }),
     ]),
 
     el('div', { class: 'pila', style: 'margin-top:14px' }, [

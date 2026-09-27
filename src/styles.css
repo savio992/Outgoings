@@ -1,43 +1,76 @@
 /* Sistema visivo di Briciole.
  *
- * Mobile-first davvero: si progetta per un iPhone in mano, non per una finestra
- * rimpicciolita. Font di sistema (su iOS e' SF Pro, gia' installato e gia'
- * familiare), cifre tabulari ovunque compaiano dei soldi, e i colori semantici
- * riservati allo stato del budget - il resto e' grigio, cosi' quando qualcosa
- * diventa rosso lo si vede. */
+ * Il modello e' Monarch: fondo caldo quasi bianco, carte bianche con un filo
+ * di bordo invece delle ombre profonde, un arancio solo per l'identita' e per
+ * cio' che si tocca, e lo stato del budget detto da barre di avanzamento e
+ * pastiglie colorate invece che da blocchi interi dipinti. Il colore resta
+ * informazione: verde, ambra e rosso vogliono dire una cosa sola ciascuno, e
+ * il resto e' inchiostro e grigio, cosi' quando qualcosa diventa rosso si vede.
+ *
+ * Mobile-first davvero: si progetta per un iPhone in mano. Font di sistema (su
+ * iOS e' SF Pro), cifre tabulari ovunque compaiano dei soldi.
+ *
+ * Due arance e non una: `--accento` e' quella del marchio e delle barre, ma col
+ * testo bianco sopra non arriva al contrasto minimo. I tasti usano
+ * `--accento-pieno`, piu' scura, e il testo arancio su bianco `--accento-testo`.
+ */
 
 :root {
-  --sfondo: #f2f2f7;
+  --sfondo: #f6f5f3;
   --carta: #ffffff;
-  --carta-alt: #fbfbfd;
-  --bordo: #e3e3e8;
-  --testo: #16161a;
-  --testo-tenue: #6c6c75;
-  --testo-fioco: #9a9aa3;
-  --accento: #c2620f;
-  --accento-tenue: #fdf3e9;
-  --ok: #2f855a;
-  --attenzione: #b45309;
-  --allarme: #c0392f;
-  --ombra: 0 1px 2px rgba(20, 16, 10, .04), 0 10px 30px -6px rgba(20, 16, 10, .10);
-  --raggio: 22px;
+  --carta-alt: #f9f8f6;
+  --bordo: #ebe8e3;
+  --traccia: #efece7;
+  --testo: #1f1d1a;
+  --testo-tenue: #6b6863;
+  --testo-fioco: #7f7b74;
+  --accento: #ff692d;
+  --accento-pieno: #d0460d;
+  --accento-testo: #c4450c;
+  --su-accento: #ffffff;
+  --accento-tenue: #fff1ea;
+  --ok: #1f9d5b;
+  --ok-testo: #177a46;
+  --ok-tenue: #e6f5ec;
+  --attenzione: #e08a0b;
+  --attenzione-testo: #a65a07;
+  --attenzione-tenue: #fdf3e2;
+  --allarme: #e5484d;
+  --allarme-testo: #c9303a;
+  --allarme-tenue: #fdecec;
+  --neutro: #a8a49d;
+  --ombra: 0 1px 2px rgba(31, 29, 26, .04);
+  --ombra-alta: 0 12px 32px -8px rgba(31, 29, 26, .18);
+  --raggio: 14px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --sfondo: #000000;
-    --carta: #16161a;
-    --carta-alt: #1e1e23;
-    --bordo: #2c2c33;
-    --testo: #f4f4f6;
-    --testo-tenue: #9d9da7;
-    --testo-fioco: #6b6b75;
-    --accento: #f0a35e;
-    --accento-tenue: #2a1d10;
-    --ok: #5fd39a;
-    --attenzione: #f0b357;
-    --allarme: #ff6b5e;
-    --ombra: 0 1px 2px rgba(0, 0, 0, .5), 0 10px 30px -6px rgba(0, 0, 0, .45);
+    --sfondo: #0e0d0c;
+    --carta: #1a1917;
+    --carta-alt: #22211e;
+    --bordo: #2e2c29;
+    --traccia: #2c2a27;
+    --testo: #f5f3f0;
+    --testo-tenue: #a7a39c;
+    --testo-fioco: #85817a;
+    --accento: #ff7a42;
+    --accento-pieno: #ff7a42;
+    --accento-testo: #ff8a57;
+    --su-accento: #1a1917;
+    --accento-tenue: #2e1a10;
+    --ok: #3ecf7f;
+    --ok-testo: #46d18a;
+    --ok-tenue: #10271a;
+    --attenzione: #f0a33a;
+    --attenzione-testo: #f3b35a;
+    --attenzione-tenue: #2c2110;
+    --allarme: #ff6b6b;
+    --allarme-testo: #ff7a7a;
+    --allarme-tenue: #2e1414;
+    --neutro: #5d5a55;
+    --ombra: 0 1px 2px rgba(0, 0, 0, .4);
+    --ombra-alta: 0 12px 32px -8px rgba(0, 0, 0, .6);
   }
 }
 
@@ -63,102 +96,147 @@ body {
 #app {
   max-width: 560px;
   margin: 0 auto;
-  padding: max(12px, env(safe-area-inset-top)) 16px calc(84px + env(safe-area-inset-bottom));
+  padding: max(12px, env(safe-area-inset-top)) 16px calc(88px + env(safe-area-inset-bottom));
 }
 
-.intestazione {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  padding: 8px 4px 18px;
+.intestazione { padding: 6px 2px 16px; }
+.intestazione .fila {
+  display: flex; align-items: center; justify-content: space-between;
+  min-height: 28px;
 }
-.marchio { font-size: 17px; font-weight: 650; letter-spacing: -.01em; }
-.marchio span { color: var(--accento); }
+.marchio {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 14px; font-weight: 650; letter-spacing: -.01em;
+}
+/* Il marchio e' un quadratino arancio e una parola: e' l'unico posto in cui
+   l'arancio non vuol dire "toccami". */
+.marchio::before {
+  content: ''; width: 16px; height: 16px; border-radius: 5px;
+  background: var(--accento);
+}
 .data { font-size: 13px; color: var(--testo-fioco); }
+.titolo-pagina {
+  margin: 10px 0 0;
+  font-size: 30px; font-weight: 720; letter-spacing: -.03em; line-height: 1.1;
+}
 
 .carta {
   background: var(--carta);
+  border: 1px solid var(--bordo);
   border-radius: var(--raggio);
   box-shadow: var(--ombra);
   overflow: hidden;
 }
 
-.sezione { margin-bottom: 22px; }
+.sezione { margin-bottom: 14px; }
 .titolo-sezione {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  color: var(--testo-fioco);
-  padding: 0 6px 8px;
+  font-size: 13px;
+  font-weight: 620;
+  color: var(--testo-tenue);
+  padding: 6px 4px 8px;
 }
+
+/* L'intestazione di una carta, alla Monarch: il nome della carta scritto come
+   un titolo e non come un'etichetta, e a destra un numero o un comando. */
+.testa-carta {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  padding: 16px 18px 10px;
+}
+.testa-carta > span:first-child { font-size: 15.5px; font-weight: 650; letter-spacing: -.015em; }
+.testa-carta > :last-child:not(:first-child) { white-space: nowrap; }
+.testa-carta .totale { font-size: 14px; font-weight: 600; color: var(--testo-tenue); }
+
+/* --- pastiglie e barre di avanzamento --------------------------------- */
+
+/* Lo stato in una parola, dentro una pastiglia tinta. Non e' mai da sola: il
+   numero accanto dice la stessa cosa, e la parola c'e' per chi i colori non li
+   distingue. */
+.pastiglia {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 999px;
+  font-size: 12px; font-weight: 620; white-space: nowrap;
+  background: var(--traccia); color: var(--testo-tenue);
+}
+.pastiglia::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.pastiglia.sereno  { background: var(--ok-tenue); color: var(--ok-testo); }
+.pastiglia.attento { background: var(--attenzione-tenue); color: var(--attenzione-testo); }
+.pastiglia.oltre   { background: var(--allarme-tenue); color: var(--allarme-testo); }
+
+/* La barra di avanzamento: una traccia grigia e un riempimento che si tinge da
+   solo con lo stato. E' il pezzo che Monarch ripete dappertutto, e qui fa lo
+   stesso - il tetto di oggi, il risparmio, ogni categoria. */
+.metro {
+  height: 8px; border-radius: 999px;
+  background: var(--traccia);
+  overflow: hidden;
+}
+.metro span {
+  display: block; height: 100%; border-radius: 999px;
+  background: var(--neutro);
+  transition: width .7s cubic-bezier(.22, 1, .36, 1);
+}
+.metro.sereno span  { background: var(--ok); }
+.metro.attento span { background: var(--attenzione); }
+.metro.oltre span   { background: var(--allarme); }
+/* Sotto zero la barra e' vuota per definizione: a dirlo resta il colore della
+   traccia, che e' l'unica cosa rimasta da colorare. */
+.metro.oltre.sotto-zero { background: var(--allarme-tenue); }
+.metro.spesso { height: 10px; }
 
 /* --- il numero di oggi -------------------------------------------------- */
 
-/* Il blocco colorato e' l'unica cosa che si guarda entrando, e cambia tinta con
-   lo stato del budget: il colore e' informazione, non decorazione. Il testo ci
-   vive sopra in bianco, quindi le tre sfumature sono tutte abbastanza scure da
-   reggere il contrasto - anche la piu' chiara. */
-.testata {
-  padding: 30px 22px 26px;
-  color: #fff;
-  text-align: left;
-  position: relative;
-  isolation: isolate;
+.eroe { padding: 18px 18px 16px; }
+.eroe .sopra {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
 }
-.testata.sereno   { background: linear-gradient(152deg, #176b52 0%, #2b9068 55%, #48ab7d 100%); }
-.testata.attento  { background: linear-gradient(152deg, #a34a14 0%, #cd7a1f 55%, #e0993c 100%); }
-.testata.oltre    { background: linear-gradient(152deg, #841f1d 0%, #b8352c 55%, #d15448 100%); }
-.testata.neutro   { background: linear-gradient(152deg, #3c3c46 0%, #55555f 55%, #6d6d78 100%); }
-
-/* Un velo di luce in alto a destra: senza, la sfumatura piatta sembra un
-   riempimento, con, sembra una superficie. */
-.testata::after {
-  content: '';
-  position: absolute; inset: 0; z-index: -1;
-  background: radial-gradient(120% 90% at 82% -10%, rgba(255, 255, 255, .28), transparent 62%);
-}
-
-.occhiello {
-  font-size: 12px; font-weight: 600;
-  letter-spacing: .07em; text-transform: uppercase;
-  opacity: .8;
-}
+.occhiello { font-size: 14px; font-weight: 560; color: var(--testo-tenue); }
 .grande {
-  font-size: clamp(40px, 13vw, 52px);
-  font-weight: 700; letter-spacing: -.035em; line-height: 1.08;
-  margin-top: 3px;
+  font-size: clamp(38px, 12vw, 48px);
+  font-weight: 740; letter-spacing: -.04em; line-height: 1.08;
+  margin: 6px 0 14px;
 }
-.sottotitolo { font-size: 13.5px; opacity: .85; margin-top: 2px; }
+.grande.oltre { color: var(--allarme-testo); }
+.eroe .sotto {
+  display: flex; justify-content: space-between; gap: 12px;
+  margin-top: 9px;
+  font-size: 13px; color: var(--testo-tenue);
+}
+.eroe .sotto b { color: var(--testo); font-weight: 620; }
 
-.barra {
-  height: 6px; border-radius: 3px;
-  background: rgba(255, 255, 255, .26);
-  margin: 16px 0 12px;
-  overflow: hidden;
+/* Il recupero detto prima: una riga a parte, su un fondo appena tinto, perche'
+   e' l'unica frase della schermata che parla di domani. */
+.spiega {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 14px; padding: 9px 12px;
+  border-radius: 10px;
+  background: var(--carta-alt);
+  font-size: 13px; line-height: 1.4; color: var(--testo-tenue);
 }
-.barra span {
-  display: block; height: 100%; border-radius: 3px;
-  background: #fff;
-  transition: width .7s cubic-bezier(.22, 1, .36, 1);
-}
+.spiega b { color: var(--testo); font-weight: 620; }
+.spiega .freccia { font-weight: 700; font-size: 14px; }
+.spiega .freccia.su { color: var(--ok-testo); }
+.spiega .freccia.giu { color: var(--allarme-testo); }
 
 /* --- la settimana ------------------------------------------------------- */
 
-.settimana { padding-top: 18px; }
-
-.spiega {
-  font-size: 12.5px; line-height: 1.4;
-  opacity: .72;
-  margin-top: 3px;
+.legenda {
+  display: flex; flex-wrap: wrap; gap: 4px 14px;
+  font-size: 12px; font-weight: 500; color: var(--testo-tenue);
 }
+.legenda span { display: inline-flex; align-items: center; gap: 6px; }
+.legenda i {
+  display: inline-block; width: 14px; height: 0;
+  border-top: 2px solid var(--accento);
+}
+.legenda i.scorso { border-top-color: var(--neutro); }
+.legenda i.ritmo, .legenda i.tetto { border-top: 1.5px dashed var(--testo-fioco); }
 
 /* Nessuna traccia dietro le barre: un rettangolo grigio a tutta altezza si
    legge come una barra vuota, e sette barre vuote dicono il contrario di quello
    che il disegno vuole dire. */
 .grafico {
-  display: flex; gap: 7px;
-  padding: 0 18px;
+  display: flex; gap: 8px;
+  padding: 4px 18px 0;
 }
 /* La colonna intera e' il bersaglio del dito, sigla compresa: la barra da sola
    e' larga poco e il giorno senza spese e' alto zero. */
@@ -170,12 +248,17 @@ body {
 button.gambo { cursor: pointer; }
 .asta {
   position: relative;
-  height: 104px;
-  display: flex; align-items: flex-end;
+  height: 112px;
+  display: flex; align-items: flex-end; justify-content: center;
+  border-bottom: 1px solid var(--bordo);
 }
+/* Barre sottili con la testa arrotondata e il piede dritto sulla linea di
+   base: e' la barra di Monarch, e con sette giorni lascia aria fra l'una e
+   l'altra invece di fare un muro. */
 .riempimento {
-  display: block; width: 100%; border-radius: 8px;
-  background: color-mix(in srgb, var(--accento) 34%, transparent);
+  display: block; width: 100%; max-width: 30px;
+  border-radius: 6px 6px 0 0;
+  background: color-mix(in srgb, var(--accento) 30%, var(--carta));
   transition: height .65s cubic-bezier(.22, 1, .36, 1);
 }
 .gambo.oggi .riempimento { background: var(--accento); }
@@ -187,175 +270,275 @@ button.gambo { cursor: pointer; }
 /* Il tetto e' una tacca per giorno e non una riga sola che attraversa tutto:
    e' proprio il fatto che ogni giorno ne abbia uno diverso la cosa da vedere. */
 .tacca {
-  position: absolute; left: 0; right: 0;
+  position: absolute; left: -3px; right: -3px;
   border-top: 1.5px dashed var(--testo-fioco);
-  opacity: .6;
   pointer-events: none;
 }
 /* Sopra la barra la tacca dev'essere chiara: sul rosso pieno un grigio si perde,
    e i giorni sforati sono quelli in cui guardarla serve davvero. */
-.riempimento.alto + .tacca { border-top-color: rgba(255, 255, 255, .85); opacity: .9; }
+.riempimento.alto + .tacca { border-top-color: rgba(255, 255, 255, .9); }
 
 .sigla {
-  padding: 7px 0 14px;
+  padding: 7px 0 12px;
   text-align: center;
-  font-size: 11px; font-weight: 600;
+  font-size: 11.5px; font-weight: 600;
   color: var(--testo-fioco);
 }
 .sigla span {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 21px; height: 21px; border-radius: 999px;
+  width: 23px; height: 23px; border-radius: 999px;
 }
-.gambo.oggi .sigla { color: var(--accento); }
+.gambo.oggi .sigla { color: var(--accento-testo); }
 /* La sigla accesa e non la barra: il giorno scelto puo' essere un giorno senza
    spese, e li' non c'e' nessuna barra da accendere. */
-.gambo.scelto .sigla span { background: var(--accento); color: var(--carta); }
+.gambo.scelto .sigla span { background: var(--testo); color: var(--carta); }
 .gambo.scelto .riempimento {
-  box-shadow: 0 0 0 2px var(--carta), 0 0 0 3.5px var(--accento);
+  box-shadow: 0 0 0 2px var(--carta), 0 0 0 3.5px var(--testo);
 }
 .gambo:active .asta { opacity: .6; }
 
-.scelta { padding-bottom: 12px; }
-.scelta .giorno { padding-top: 0; }
-.scelta .nota {
-  padding: 0 18px;
-  font-size: 12.5px;
-  color: var(--testo-tenue);
+.scelta {
+  display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 2px 12px;
+  margin: 2px 18px 14px; padding: 10px 12px;
+  border-radius: 10px; background: var(--carta-alt);
+  font-size: 13px; color: var(--testo-tenue);
 }
-.scelta .nota.oltre { color: var(--allarme); }
+.scelta > span { white-space: nowrap; }
+.scelta b { color: var(--testo); font-weight: 620; }
+.scelta .oltre { color: var(--allarme-testo); font-weight: 600; }
+.scelta .sotto { color: var(--ok-testo); font-weight: 600; }
+
+/* --- l'andamento del mese ---------------------------------------------- */
+
+.andamento .cifra {
+  padding: 0 18px;
+  font-size: 26px; font-weight: 720; letter-spacing: -.03em;
+}
+.andamento .confronto { padding: 2px 18px 0; font-size: 13px; color: var(--testo-tenue); }
+.andamento .confronto b { font-weight: 620; }
+.andamento .confronto .meno { color: var(--ok-testo); }
+.andamento .confronto .piu { color: var(--allarme-testo); }
+.andamento .legenda { padding: 12px 18px 0; }
+
+.linee {
+  position: relative;
+  margin: 10px 18px 0;
+  touch-action: pan-y;
+}
+.linee svg { display: block; width: 100%; height: 150px; overflow: hidden; }
+.linee .griglia { stroke: var(--bordo); stroke-width: 1; }
+.linee .questo { fill: none; stroke: var(--accento); stroke-width: 2.25; stroke-linejoin: round; stroke-linecap: round; }
+.linee .area { fill: var(--accento); opacity: .12; }
+.linee .scorso { fill: none; stroke: var(--neutro); stroke-width: 1.75; stroke-linejoin: round; }
+.linee .ritmo { fill: none; stroke: var(--testo-fioco); stroke-width: 1.25; stroke-dasharray: 4 4; }
+.linee .guida { stroke: var(--testo-fioco); stroke-width: 1; }
+.punto-html {
+  position: absolute; width: 10px; height: 10px; border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--carta); border: 2px solid var(--accento);
+  pointer-events: none;
+}
+.punto-html.scorso-p { border-color: var(--neutro); }
+.andamento .scelta { margin-top: 10px; }
+.assi {
+  display: flex; justify-content: space-between;
+  margin: 4px 18px 0;
+  font-size: 11px; color: var(--testo-fioco);
+}
+
+/* --- ricorrenti --------------------------------------------------------- */
+
+.ricorrente { cursor: default; }
+.ricorrente:active { background: none; }
+.ricorrente .icona-stato {
+  flex: none;
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--carta-alt); color: var(--testo-tenue);
+  font-size: 11px; font-weight: 700; line-height: 1.05; text-align: center;
+  border: 1px solid var(--bordo);
+}
+.ricorrente .icona-stato.pagata { background: var(--ok-tenue); color: var(--ok-testo); border-color: transparent; font-size: 16px; }
+.ricorrente .icona-stato.attesa { background: var(--attenzione-tenue); color: var(--attenzione-testo); border-color: transparent; }
+.ricorrente.pagata .nome b, .ricorrente.pagata .importo { color: var(--testo-tenue); }
+
+/* --- le spese del giorno, il risparmio ---------------------------------- */
 
 .spento { padding: 30px 22px; text-align: center; color: var(--testo-tenue); font-size: 15px; }
 
 .avviso {
-  padding: 12px 20px 14px;
-  background: var(--accento-tenue);
-  color: var(--attenzione);
+  padding: 12px 18px 14px;
+  background: var(--attenzione-tenue);
+  color: var(--attenzione-testo);
   font-size: 12.5px; line-height: 1.45;
 }
 .avviso b { font-weight: 640; }
 
-/* --- il risparmio del mese ---------------------------------------------- */
-
-/* Vive su carta bianca, non dentro il blocco colorato: la testata risponde a
-   "quanto posso spendere oggi", questa a "come sta andando il mese". Due
-   domande diverse meritano due superfici diverse, o si legge una sola cosa. */
 .risparmio { padding-bottom: 16px; }
-.risparmio .totale { color: var(--testo); font-weight: 640; }
+.risparmio .totale { color: var(--testo); font-weight: 650; font-size: 15px; }
+.risparmio .metro { margin: 4px 18px 10px; }
+.risparmio.oltre .totale.obiettivo { color: var(--allarme-testo); }
+.risparmio .totale.saldo.rosso { color: var(--allarme-testo); }
 
-/* La barra qui non e' quella della testata: li' e' bianca su colore, qui deve
-   tingersi da sola per dire lo stato senza aggiungere una parola. */
-.risparmio .barra {
-  background: var(--bordo);
-  margin: 4px 18px 10px;
-}
-.risparmio .barra span { background: var(--testo-fioco); }
-.risparmio.sereno .barra span  { background: var(--ok); }
-.risparmio.attento .barra span { background: var(--accento); }
-/* Sotto zero la barra e' vuota per definizione: a dirlo resta il colore del
-   fondo, che e' l'unica cosa rimasta da colorare. */
-.risparmio.oltre .barra { background: color-mix(in srgb, var(--allarme) 30%, var(--bordo)); }
-.risparmio.oltre .totale.obiettivo { color: var(--allarme); }
-.risparmio .totale.saldo.rosso { color: var(--allarme); }
-
-.risparmio .nota {
+.nota {
   padding: 0 18px;
   font-size: 12.5px; line-height: 1.45;
   color: var(--testo-tenue);
 }
-.risparmio .nota.fioco { color: var(--testo-fioco); margin-top: 4px; }
-.risparmio .nota + .giorno { padding-top: 10px; }
+.nota.fioco { color: var(--testo-fioco); margin-top: 4px; }
+.risparmio .nota + .testa-carta { padding-top: 12px; }
 
 /* Saldo e risparmio stanno sulla stessa carta ma rispondono a due domande: una
    riga sottile basta a non farli leggere come un unico blocco. */
-.divisorio { height: 1px; background: var(--bordo); margin: 14px 18px 4px; }
+.divisorio { height: 1px; background: var(--bordo); margin: 14px 18px 0; }
 
 /* --- righe di dati ------------------------------------------------------ */
 
-.righe { display: flex; }
+.righe { display: flex; border-top: 1px solid var(--bordo); }
 .righe > div {
   flex: 1;
-  padding: 13px 8px;
+  padding: 12px 8px 13px;
   text-align: center;
-  border-top: 1px solid var(--bordo);
 }
 .righe > div + div { border-left: 1px solid var(--bordo); }
-.righe .valore { font-size: 16px; font-weight: 620; letter-spacing: -.01em; }
-.righe .chiave { font-size: 11px; color: var(--testo-fioco); margin-top: 1px; }
+.righe .valore { font-size: 16px; font-weight: 660; letter-spacing: -.015em; }
+.righe .chiave { font-size: 11.5px; color: var(--testo-fioco); margin-top: 1px; }
+.righe .valore.entrata { color: var(--ok-testo); }
+.righe .valore.fissa { color: var(--testo-tenue); }
 
 /* --- barra dei mesi ----------------------------------------------------- */
 
 .barra-mesi {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 10px 12px;
+  padding: 10px 8px;
 }
-.mese-nome { font-size: 17px; font-weight: 650; letter-spacing: -.02em; }
+.mese-nome { font-size: 17px; font-weight: 680; letter-spacing: -.02em; }
 .mese-freccia {
-  width: 40px; height: 34px;
-  border: 0; border-radius: 10px;
-  background: none; color: var(--accento);
-  font-size: 22px; line-height: 1; cursor: pointer;
+  width: 40px; height: 36px;
+  border: 1px solid var(--bordo); border-radius: 10px;
+  background: var(--carta); color: var(--testo);
+  font-size: 20px; line-height: 1; cursor: pointer;
 }
 .mese-freccia:disabled { color: var(--bordo); cursor: default; }
 .mese-freccia:not(:disabled):active { background: var(--carta-alt); }
 
-.righe .valore.entrata { color: var(--ok); }
-.righe .valore.fissa { color: var(--testo-tenue); }
-
 /* --- elenco spese ------------------------------------------------------- */
 
+/* L'intestazione di un giorno dentro un elenco: una fascia sottile e tinta,
+   come le date fra le transazioni di Monarch. Separa senza essere un titolo. */
 .giorno {
   display: flex; justify-content: space-between; align-items: baseline;
-  padding: 14px 18px 6px;
-  font-size: 12px; font-weight: 600; letter-spacing: .04em;
-  text-transform: uppercase; color: var(--testo-fioco);
+  padding: 8px 18px;
+  background: var(--carta-alt);
+  border-bottom: 1px solid var(--bordo);
+  font-size: 12.5px; font-weight: 620; color: var(--testo-tenue);
 }
-.giorno .totale { text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--testo-tenue); }
+.giorno + * { border-top: 0 !important; }
+.giorno .totale { font-size: 12.5px; color: var(--testo-tenue); font-weight: 600; }
+.carta > .giorno:not(:first-child) { border-top: 1px solid var(--bordo); }
 
 .spesa {
   display: flex; align-items: center; gap: 12px;
-  padding: 9px 18px;
+  padding: 11px 18px;
   border-top: 1px solid var(--bordo);
   background: none; border-left: 0; border-right: 0; border-bottom: 0;
   width: 100%; text-align: left; color: inherit; font: inherit;
+  cursor: pointer;
 }
-.giorno + .spesa { border-top: 0; }
-.spesa { cursor: pointer; }
+.testa-carta + .spesa { border-top: 1px solid var(--bordo); }
 .spesa:active { background: var(--carta-alt); }
 
+/* Il sigillo e' un cerchio con le iniziali, nella tinta dell'esercente ma
+   diluita: il posto dei loghi di Monarch, senza chiederli a nessun servizio. */
 .sigillo {
+  --tinta: var(--testo-tenue);
   flex: none;
-  width: 36px; height: 36px; border-radius: 11px;
+  width: 36px; height: 36px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  color: #fff; font-size: 12.5px; font-weight: 680; letter-spacing: .02em;
+  background: color-mix(in srgb, var(--tinta) 15%, var(--carta));
+  color: var(--tinta);
+  font-size: 12.5px; font-weight: 700; letter-spacing: .02em;
+}
+@media (prefers-color-scheme: dark) {
+  .sigillo { background: color-mix(in srgb, var(--tinta) 30%, var(--carta)); color: color-mix(in srgb, var(--tinta) 45%, #fff); }
 }
 
 .spesa .nome { flex: 1; min-width: 0; }
-.spesa .nome b { display: block; font-weight: 550; font-size: 15px; letter-spacing: -.01em;
+.spesa .nome b { display: block; font-weight: 580; font-size: 15px; letter-spacing: -.01em;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.spesa .nome small { color: var(--testo-fioco); font-size: 12.5px; }
-.spesa .importo { font-size: 15.5px; font-weight: 620; letter-spacing: -.01em; white-space: nowrap; }
-.spesa .importo.entrata { color: var(--ok); }
-.spesa .importo.fissa { color: var(--testo-tenue); font-weight: 550; }
+.spesa .nome small { display: block; color: var(--testo-fioco); font-size: 12.5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.spesa .nome small .categoria { color: var(--testo-tenue); font-weight: 550; }
+.spesa .importo { font-size: 15.5px; font-weight: 640; letter-spacing: -.01em; white-space: nowrap; }
+.spesa .importo.entrata { color: var(--ok-testo); }
+.spesa .importo.fissa { color: var(--testo-tenue); font-weight: 560; }
 
 .pallino {
-  width: 7px; height: 7px; border-radius: 50%;
+  width: 8px; height: 8px; border-radius: 50%;
   background: var(--attenzione); flex: none;
 }
 
 .vuoto { padding: 34px 22px; text-align: center; color: var(--testo-fioco); font-size: 14.5px; }
 
+/* --- ricerca ------------------------------------------------------------ */
+
+.cerca-campo {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--bordo); border-radius: 12px;
+  background: var(--carta);
+}
+.cerca-campo svg { width: 18px; height: 18px; flex: none; fill: none; stroke: var(--testo-fioco);
+  stroke-width: 2; stroke-linecap: round; }
+.cerca-campo input {
+  flex: 1; min-width: 0;
+  padding: 11px 0; border: 0; background: none; outline: none;
+  color: var(--testo); font: inherit; font-size: 16px;
+}
+.cerca-campo:focus-within { border-color: var(--accento); box-shadow: 0 0 0 3px var(--accento-tenue); }
+.cerca-campo .togli-testo {
+  border: 0; background: var(--traccia); color: var(--testo-tenue);
+  width: 22px; height: 22px; border-radius: 50%; font-size: 14px; line-height: 1;
+  cursor: pointer;
+}
+
+/* I filtri in una riga che scorre di lato: sei pastiglie non stanno in una
+   riga da telefono, e andare a capo spingerebbe l'elenco giu' a ogni tocco. */
+.filtri {
+  display: flex; gap: 8px;
+  margin: 10px -16px 14px; padding: 0 16px;
+  overflow-x: auto; scrollbar-width: none;
+}
+.filtri::-webkit-scrollbar { display: none; }
+.filtro {
+  flex: none;
+  padding: 7px 13px;
+  border: 1px solid var(--bordo); border-radius: 999px;
+  background: var(--carta); color: var(--testo-tenue);
+  font: inherit; font-size: 13.5px; font-weight: 580; cursor: pointer;
+}
+.filtro[aria-pressed='true'] { background: var(--testo); border-color: var(--testo); color: var(--carta); }
+.filtro .conta { opacity: .7; margin-left: 4px; font-weight: 500; }
+
+.risultati-testa {
+  display: flex; justify-content: space-between; gap: 12px;
+  padding: 0 4px 10px;
+  font-size: 13px; color: var(--testo-tenue);
+}
+.risultati-testa b { color: var(--testo); font-weight: 620; }
+
 /* --- controlli ---------------------------------------------------------- */
 
 .bottone {
   display: block; width: 100%;
-  padding: 14px; border: 0; border-radius: 14px;
-  background: var(--accento); color: #fff;
-  font: inherit; font-weight: 620; font-size: 16px;
+  padding: 14px; border: 0; border-radius: 12px;
+  background: var(--accento-pieno); color: var(--su-accento);
+  font: inherit; font-weight: 640; font-size: 16px;
   cursor: pointer;
 }
 .bottone:active { opacity: .82; }
-.bottone.tenue { background: var(--carta); color: var(--testo); box-shadow: var(--ombra); }
-.bottone.pericolo { background: none; color: var(--allarme); box-shadow: none; }
+.bottone.tenue { background: var(--carta); color: var(--testo); border: 1px solid var(--bordo); box-shadow: var(--ombra); }
+.bottone.pericolo { background: none; color: var(--allarme-testo); box-shadow: none; }
 
 .campo {
   display: flex; align-items: center; gap: 12px;
@@ -365,42 +548,42 @@ button.gambo { cursor: pointer; }
 .campo label { flex: 1; font-size: 15px; }
 .campo .campo-testo { flex: 1; font-size: 15px; }
 .campo .campo-testo small { display: block; color: var(--testo-fioco); font-size: 12px; line-height: 1.35; }
-.campo .interruttore { width: auto; flex: none; transform: scale(1.3); accent-color: var(--accento); }
-.campo input {
+.campo .interruttore { width: auto; flex: none; transform: scale(1.3); accent-color: var(--accento-pieno); }
+.campo input, .limite input {
   width: 116px; padding: 8px 10px;
   border: 1px solid var(--bordo); border-radius: 10px;
   background: var(--carta-alt); color: var(--testo);
   font: inherit; font-size: 15px; text-align: right;
   font-variant-numeric: tabular-nums;
 }
-.campo input.nome { width: auto; flex: 1; text-align: left; }
+.campo input.nome { width: auto; flex: 1; min-width: 0; text-align: left; }
 /* Il selettore di data nativo porta con se' il suo formato e la sua iconcina:
    con la larghezza degli altri campi la data esce troncata. */
 .campo input[type='date'] { width: auto; min-width: 150px; text-align: left; }
-.campo input:focus { outline: 2px solid var(--accento); outline-offset: -1px; }
-.campo input.sbagliato { border-color: var(--allarme); color: var(--allarme); }
+.campo input:focus, .limite input:focus { outline: 2px solid var(--accento); outline-offset: -1px; }
+.campo input.sbagliato, .limite input.sbagliato { border-color: var(--allarme); color: var(--allarme-testo); }
 /* Le grafie gia' usate, dentro una riga di campo: la spaziatura la mette il
    .campo, non le etichette, che qui non sono in fondo a un foglio. */
 .campo .etichette { padding: 0; flex: 1; }
 .campo label.fioco { color: var(--testo-tenue); }
-.campo .togli.piu { font-size: 20px; color: var(--accento); }
+.campo .togli.piu { font-size: 20px; color: var(--accento-testo); }
 .campo label .fioco { color: var(--testo-fioco); font-size: 13px; }
 
 /* Mese per mese: due colonne, il nome a sinistra e quanto e' rimasto a destra.
    Il rosso e' l'unica tinta, e vuol dire una cosa sola - quel mese ha mangiato
    piu' di quello che entrava. */
-.riga-mese .esito-mese { font-size: 15px; font-weight: 600; color: var(--ok); }
-.riga-mese .esito-mese.rosso { color: var(--allarme); }
+.riga-mese .esito-mese { font-size: 15px; font-weight: 620; color: var(--ok-testo); }
+.riga-mese .esito-mese.rosso { color: var(--allarme-testo); }
 .riga-mese .esito-mese.incerto { color: var(--testo-fioco); font-weight: 500; }
 .totale-mesi { background: var(--carta-alt); }
-.totale-mesi label { font-weight: 600; }
+.totale-mesi label { font-weight: 620; }
 .campo .versione {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 13px; color: var(--testo-fioco); letter-spacing: .02em;
 }
 .campo.cerca { width: 100%; background: none; border-left: 0; border-right: 0;
   border-bottom: 0; font: inherit; text-align: left; cursor: pointer; }
-.campo.cerca label { color: var(--accento); font-weight: 550; }
+.campo.cerca label { color: var(--accento-testo); font-weight: 580; }
 /* Quarantaquattro punti e' la misura minima di un bersaglio da dito: a
    diciassette si sbaglia, e sbagliare qui vuol dire cancellare una riga. */
 .campo .togli {
@@ -410,36 +593,111 @@ button.gambo { cursor: pointer; }
   display: flex; align-items: center; justify-content: center;
 }
 
+/* --- il piano del mese (Budget) ---------------------------------------- */
+
+/* Lo stipendio come una barra sola divisa in quattro: la stessa catena del
+   tetto, disegnata. I pezzi sono separati da un filo del colore della carta,
+   cosi' due tinte vicine non si fondono. */
+.ripartizione { padding: 0 18px 16px; }
+.ripartizione .cifra { font-size: 26px; font-weight: 720; letter-spacing: -.03em; }
+.ripartizione .cifra small { font-size: 14px; font-weight: 550; color: var(--testo-tenue); letter-spacing: 0; }
+.pila-barra {
+  display: flex; height: 14px; margin: 12px 0 14px;
+  border-radius: 999px; overflow: hidden; background: var(--traccia);
+}
+.pila-barra span { height: 100%; transition: width .7s cubic-bezier(.22, 1, .36, 1); }
+.pila-barra span + span { box-shadow: -2px 0 0 var(--carta); }
+.voce-fisse { background: var(--neutro); }
+.voce-risparmio { background: var(--ok); }
+.voce-speso { background: var(--accento); }
+.voce-resta { background: color-mix(in srgb, var(--accento) 28%, var(--carta)); }
+.voce-oltre { background: var(--allarme); }
+.voci { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+.voci > div { display: flex; gap: 8px; align-items: flex-start; }
+.voci i { flex: none; width: 10px; height: 10px; border-radius: 3px; margin-top: 4px; }
+.voci .quanto { display: block; font-size: 15px; font-weight: 650; }
+.voci .cosa { display: block; font-size: 12px; color: var(--testo-tenue); }
+
+/* Un limite di categoria: nome e campo sulla stessa riga, sotto la barra e il
+   conto. E' la riga di budget di Monarch, con in piu' il "al giorno". */
+.limite { padding: 12px 18px 13px; border-top: 1px solid var(--bordo); }
+.limite:first-child { border-top: 0; }
+.limite .fila { display: flex; align-items: center; gap: 12px; }
+.limite .fila label { flex: 1; font-size: 15px; font-weight: 580; }
+.limite .metro { margin: 10px 0 6px; }
+.limite .conto { display: flex; justify-content: space-between; gap: 10px; font-size: 12.5px; color: var(--testo-tenue); }
+.limite .conto .oltre { color: var(--allarme-testo); font-weight: 600; }
+.limite .conto .sereno { color: var(--ok-testo); font-weight: 600; }
+.limite .conto .attento { color: var(--attenzione-testo); font-weight: 600; }
+
+/* --- flussi di cassa ---------------------------------------------------- */
+
+/* Entrate sopra la linea, uscite sotto: e' il grafico di cassa di Monarch, e
+   con i due versi separati un mese in rosso si vede senza leggere un numero. */
+.flussi .colonne {
+  display: flex; gap: 8px;
+  padding: 6px 18px 0;
+}
+.flussi .mese-col {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column; align-items: stretch;
+  padding: 0; border: 0; background: none; font: inherit; color: inherit;
+  cursor: pointer;
+}
+.flussi .su, .flussi .giu { position: relative; display: flex; justify-content: center; }
+.flussi .su { align-items: flex-end; border-bottom: 1px solid var(--testo-fioco); }
+.flussi .giu { align-items: flex-start; }
+.flussi .su span, .flussi .giu span { display: block; width: 100%; max-width: 26px; }
+.flussi .su span { background: var(--ok); border-radius: 5px 5px 0 0; }
+.flussi .giu span { background: var(--allarme); border-radius: 0 0 5px 5px; opacity: .85; }
+.flussi .mese-col.spento-col .su span, .flussi .mese-col.spento-col .giu span { opacity: .35; }
+.flussi .mese-col .sigla { padding: 6px 0 12px; }
+.flussi .mese-col.scelto .sigla span { background: var(--testo); color: var(--carta); width: auto; padding: 0 7px; }
+.flussi .quadro {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  border-top: 1px solid var(--bordo);
+}
+.flussi .quadro > div { padding: 12px 8px; text-align: center; }
+.flussi .quadro > div + div { border-left: 1px solid var(--bordo); }
+.flussi .quadro .valore { font-size: 15.5px; font-weight: 660; }
+.flussi .quadro .valore.entrata { color: var(--ok-testo); }
+.flussi .quadro .valore.rosso { color: var(--allarme-testo); }
+.flussi .quadro .chiave { font-size: 11.5px; color: var(--testo-fioco); }
+
 /* --- classifiche dell'analisi ------------------------------------------- */
 
 /* Una riga di classifica e' una riga di spesa con una barra sotto: stessa
-   altezza, stessi pesi, stesso sigillo colorato, cosi' passando da un tab
-   all'altro non si cambia alfabeto. La barra sta in fondo e non dietro il
-   testo - un rettangolo colorato sotto un nome lo rende meno leggibile
-   proprio nelle righe che pesano di piu'. */
+   altezza, stessi pesi, stesso sigillo, cosi' passando da un tab all'altro non
+   si cambia alfabeto. La barra ha la sua traccia, come in Monarch: senza, una
+   barra corta si legge come una sbavatura. */
 .gruppo {
   position: relative;
   display: flex; align-items: center; gap: 12px;
-  padding: 9px 18px 13px;
+  padding: 10px 18px 18px;
   border-top: 1px solid var(--bordo);
   background: none; border-left: 0; border-right: 0; border-bottom: 0;
   width: 100%; text-align: left; color: inherit; font: inherit;
   cursor: pointer;
 }
-.giorno + .gruppo { border-top: 0; }
 .gruppo:active { background: var(--carta-alt); }
 
 .gruppo .nome { flex: 1; min-width: 0; }
-.gruppo .nome b { display: block; font-weight: 550; font-size: 15px; letter-spacing: -.01em;
+.gruppo .nome b { display: block; font-weight: 580; font-size: 15px; letter-spacing: -.01em;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gruppo .nome small { color: var(--testo-fioco); font-size: 12.5px; }
-.gruppo .importo { font-size: 15.5px; font-weight: 620; letter-spacing: -.01em; white-space: nowrap; }
+.gruppo .importo { font-size: 15.5px; font-weight: 640; letter-spacing: -.01em; white-space: nowrap; }
 
+.gruppo::after {
+  content: '';
+  position: absolute; left: 18px; right: 18px; bottom: 8px;
+  height: 4px; border-radius: 2px;
+  background: var(--traccia);
+}
 .quota {
-  position: absolute; left: 18px; bottom: 5px;
-  height: 3px; border-radius: 2px;
+  position: absolute; left: 18px; bottom: 8px; z-index: 1;
+  height: 4px; border-radius: 2px;
   max-width: calc(100% - 36px);
-  background: color-mix(in srgb, var(--accento) 34%, transparent);
+  background: var(--accento);
   transition: width .6s cubic-bezier(.22, 1, .36, 1);
 }
 
@@ -448,46 +706,38 @@ button.gambo { cursor: pointer; }
 .gruppo.spento-gruppo { cursor: default; }
 .gruppo.spento-gruppo .nome b,
 .gruppo.spento-gruppo .importo { color: var(--testo-tenue); }
-.gruppo.spento-gruppo .quota { background: var(--bordo); }
+.gruppo.spento-gruppo .quota { background: var(--neutro); }
 .gruppo.spento-gruppo .sigillo { opacity: .45; }
 
 /* Nella classifica dei mesi non c'e' il sigillo: le iniziali di "Agosto 2026"
    non distinguono nessun mese da nessun altro. Il mese aperto si riconosce
    dallo sfondo, che e' l'unica cosa che li' cambia da riga a riga. */
-.gruppo.scelto { background: var(--carta-alt); }
-.gruppo.scelto .nome b { font-weight: 650; }
+.gruppo.scelto { background: var(--accento-tenue); }
+.gruppo.scelto .nome b { font-weight: 680; }
 
 .apri-tutto {
   display: block; width: 100%;
-  padding: 11px; border: 0; border-top: 1px solid var(--bordo);
-  background: none; color: var(--accento);
-  font: inherit; font-size: 13.5px; font-weight: 560; cursor: pointer;
+  padding: 12px; border: 0; border-top: 1px solid var(--bordo);
+  background: none; color: var(--accento-testo);
+  font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
 }
 .apri-tutto:active { background: var(--carta-alt); }
 
-/* Sta dentro il titolo della carta, che e' tutto maiuscolo e spaziato: se
-   ereditasse quelle regole sembrerebbe un secondo titolo e non un tasto. */
 /* Non e' un tasto: dice con che unita' sono disegnate le barre di questa
    carta, e sta accanto al titolo perche' vale per tutte le righe sotto. */
-.misura {
-  text-transform: none; letter-spacing: 0;
-  font-size: 11.5px; font-weight: 550; color: var(--testo-fioco);
-}
+.misura { font-size: 12.5px; font-weight: 550; color: var(--testo-fioco); }
 
 .scambia {
-  border: 0; background: none; color: var(--accento);
-  font: inherit; font-size: 11.5px; font-weight: 620;
-  text-transform: none; letter-spacing: 0;
-  padding: 0; cursor: pointer;
+  border: 1px solid var(--bordo); border-radius: 999px; background: var(--carta);
+  color: var(--testo);
+  font: inherit; font-size: 12.5px; font-weight: 600;
+  padding: 4px 11px; cursor: pointer;
 }
 
 .analisi .nota {
-  padding: 11px 18px 14px;
+  padding: 12px 18px 14px;
   border-top: 1px solid var(--bordo);
-  font-size: 12.5px; line-height: 1.45;
-  color: var(--testo-tenue);
 }
-.analisi .nota.fioco { color: var(--testo-fioco); }
 .analisi .nota + .nota { border-top: 0; padding-top: 0; }
 
 /* --- il foglio di un esercente ------------------------------------------ */
@@ -500,11 +750,11 @@ button.gambo { cursor: pointer; }
   padding: 7px 13px;
   border: 1px solid var(--bordo); border-radius: 999px;
   background: var(--carta); color: var(--testo-tenue);
-  font: inherit; font-size: 13.5px; font-weight: 550; cursor: pointer;
+  font: inherit; font-size: 13.5px; font-weight: 560; cursor: pointer;
 }
-.etichetta.scelta { background: var(--accento); border-color: var(--accento); color: #fff; }
+.etichetta.scelta { background: var(--testo); border-color: var(--testo); color: var(--carta); }
 /* Tratteggiata perche' non e' una scelta fra quelle proposte: apre un campo. */
-.etichetta.nuova { color: var(--accento); border-style: dashed; }
+.etichetta.nuova { color: var(--accento-testo); border-style: dashed; }
 
 .unisci {
   width: 100%; padding: 11px 12px;
@@ -518,27 +768,27 @@ button.gambo { cursor: pointer; }
 .nav {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
   display: flex;
-  padding-bottom: env(safe-area-inset-bottom);
-  background: color-mix(in srgb, var(--carta) 82%, transparent);
+  padding: 0 max(8px, env(safe-area-inset-left)) env(safe-area-inset-bottom);
+  background: color-mix(in srgb, var(--carta) 88%, transparent);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   backdrop-filter: saturate(180%) blur(20px);
   border-top: 1px solid var(--bordo);
 }
 .nav button {
-  flex: 1; padding: 9px 0 7px;
+  flex: 1; padding: 9px 0 8px;
   border: 0; background: none; cursor: pointer;
   display: flex; flex-direction: column; align-items: center; gap: 3px;
-  color: var(--testo-fioco); font: inherit; font-size: 10.5px; font-weight: 550;
+  color: var(--testo-fioco); font: inherit; font-size: 10.5px; font-weight: 600;
 }
-.nav button[aria-current='page'] { color: var(--accento); }
-.nav svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 1.8;
+.nav button[aria-current='page'] { color: var(--accento-testo); }
+.nav svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 1.9;
   stroke-linecap: round; stroke-linejoin: round; }
 
 /* --- foglio dell'incolla ------------------------------------------------ */
 
 .velo {
   position: fixed; inset: 0; z-index: 30;
-  background: rgba(0, 0, 0, .45);
+  background: rgba(20, 18, 16, .45);
   display: flex; align-items: flex-end;
   animation: sfuma .2s ease;
 }
@@ -548,6 +798,7 @@ button.gambo { cursor: pointer; }
   width: 100%; max-width: 560px; margin: 0 auto;
   background: var(--sfondo);
   border-radius: 20px 20px 0 0;
+  box-shadow: var(--ombra-alta);
   padding: 8px 16px calc(20px + env(safe-area-inset-bottom));
   max-height: 92vh; overflow-y: auto;
   animation: sali .28s cubic-bezier(.22, 1, .36, 1);
@@ -556,8 +807,9 @@ button.gambo { cursor: pointer; }
 
 .presa { width: 36px; height: 5px; border-radius: 3px; background: var(--bordo); margin: 6px auto 14px; }
 
-.foglio h2 { font-size: 20px; font-weight: 660; letter-spacing: -.02em; margin: 0 4px 6px; }
+.foglio h2 { font-size: 22px; font-weight: 700; letter-spacing: -.025em; margin: 0 4px 6px; }
 .foglio p.aiuto { font-size: 13.5px; color: var(--testo-tenue); margin: 0 4px 14px; }
+.foglio .titolo-sezione { padding-top: 14px; }
 
 .foglio textarea {
   width: 100%; min-height: 168px; padding: 14px;
@@ -570,7 +822,7 @@ button.gambo { cursor: pointer; }
 
 .esito { padding: 14px 16px; font-size: 14.5px; line-height: 1.55; }
 .esito b { font-weight: 650; }
-.esito .nota { color: var(--attenzione); }
+.esito .nota { color: var(--attenzione-testo); padding: 0; font-size: inherit; }
 .esito .minuta { color: var(--testo-fioco); font-size: 12.5px; margin-top: 4px; }
 .esito .diagnostica {
   margin: 6px 0; padding: 10px;
@@ -584,5 +836,5 @@ button.gambo { cursor: pointer; }
 .pila > * + * { margin-top: 10px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .barra span, .riempimento, .quota, .foglio, .velo { transition: none; animation: none; }
+  .metro span, .riempimento, .quota, .pila-barra span, .foglio, .velo { transition: none; animation: none; }
 }
