@@ -30,6 +30,9 @@ const FILE = [
   'src/ui/budget.js',
   'src/ui/incolla.js',
   'src/ui/modifica.js',
+  'src/ui/aggiungi.js',
+  'src/ui/analisi.js',
+  'src/ui/categorie.js',
   'src/domain/parser.js',
   'src/domain/banca.js',
   'src/domain/xlsx.js',
@@ -38,6 +41,9 @@ const FILE = [
   'src/domain/registro.js',
   'src/domain/budget.js',
   'src/domain/export.js',
+  'src/domain/statistiche.js',
+  'src/domain/ricerca.js',
+  'src/domain/ricorrenti.js',
 ];
 
 self.addEventListener('install', (e) => {

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   risolviTempo, istanteLocale, isoRoma, risolviGiornoApp, risolviIstanteApp,
+  mancaAllaMezzanotte,
 } from '../src/domain/tempo.js';
 
 // Mercoledi' 26 agosto 2026, ora legale.
@@ -134,4 +135,28 @@ test('un istante che non e' + "'" + ' un istante resta null', () => {
   for (const t of ['27/08/2026', '16:36', '27/08/2026 25:00', '27/08/2026 16:99', '', null]) {
     assert.equal(risolviIstanteApp(t), null, String(t));
   }
+});
+
+test('la sveglia di mezzanotte punta alla fine del giorno, non a 24 ore da adesso', () => {
+  const trentaSecondiPrima = Date.parse('2026-08-31T23:59:30+02:00');
+  assert.equal(mancaAllaMezzanotte('2026-08-31', trentaSecondiPrima), 30000);
+  // Un giorno normale, preso dal suo inizio, dura ventiquattro ore.
+  assert.equal(mancaAllaMezzanotte('2026-08-31', istanteLocale(2026, 8, 31, 0, 0)), 86400000);
+});
+
+test('le due notti del cambio ora non durano ventiquattro ore', () => {
+  // 29 marzo 2026: alle 02:00 si va alle 03:00, e il giorno ne dura ventitre.
+  assert.equal(mancaAllaMezzanotte('2026-03-29', istanteLocale(2026, 3, 29, 0, 0)), 23 * 3600000);
+  // 25 ottobre 2026: alle 03:00 si torna alle 02:00, e il giorno ne dura venticinque.
+  assert.equal(mancaAllaMezzanotte('2026-10-25', istanteLocale(2026, 10, 25, 0, 0)), 25 * 3600000);
+  // La mezzanotte del giorno del ritorno e' ancora ora legale: il cambio e' dopo.
+  assert.equal(isoRoma(istanteLocale(2026, 10, 25, 0, 0)), '2026-10-25T00:00:00+02:00');
+  assert.equal(isoRoma(istanteLocale(2026, 3, 29, 0, 0)), '2026-03-29T00:00:00+01:00');
+});
+
+test('una mezzanotte gia' + "'" + ' passata non punta la sveglia nel passato', () => {
+  // Orologio di sistema spostato avanti, o `giorno` rimasto indietro: un
+  // `setTimeout` negativo scatterebbe subito, e il giro ricomincerebbe senza
+  // fermarsi mai.
+  assert.equal(mancaAllaMezzanotte('2026-08-31', Date.parse('2026-09-03T10:00:00+02:00')), 0);
 });

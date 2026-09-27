@@ -226,6 +226,18 @@ test('i mesi del registro escono dal piu' + "'" + ' recente', () => {
   const t = (giorno) => ({ id: giorno, merchant: 'X', amount: 1, occurredAt: `${giorno}T00:00:00+02:00` });
   const registro = [t('2026-08-26'), t('2026-07-03'), t('2026-08-01'), t('2025-12-31')];
   assert.deepEqual(mesiDelRegistro(registro), ['2026-08', '2026-07', '2025-12']);
+
+  // Il primo settembre il mese nuovo e' vuoto ma deve esserci lo stesso:
+  // altrimenti la freccia avanti resta spenta e a settembre non si arriva.
+  assert.deepEqual(
+    mesiDelRegistro(registro, '2026-09-01'),
+    ['2026-09', '2026-08', '2026-07', '2025-12'],
+  );
+  // Un mese di oggi che il registro ha gia' non si sdoppia.
+  assert.deepEqual(
+    mesiDelRegistro(registro, '2026-08-26'),
+    ['2026-08', '2026-07', '2025-12'],
+  );
 });
 
 test('spostarsi di un mese scavalca l' + "'" + ' anno', () => {

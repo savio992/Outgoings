@@ -13,6 +13,7 @@ import { apriIncolla } from './ui/incolla.js';
 import { apriModifica } from './ui/modifica.js';
 import { apriAggiungi } from './ui/aggiungi.js';
 import { meseDi } from './domain/registro.js';
+import { mancaAllaMezzanotte } from './domain/tempo.js';
 
 export const NOME = 'Briciole';
 
@@ -42,6 +43,19 @@ function dataDiOggi() {
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
+/**
+ * Il titolo grande della pagina, come nelle app di Monarch. Su Oggi e' un
+ * saluto: e' la schermata che si apre ogni mattina, e il nome del tab sarebbe
+ * solo un'etichetta ripetuta sotto al pollice.
+ */
+function titoloPagina() {
+  if (vista !== 'oggi') return VISTE.find((v) => v.id === vista).nome;
+  const ora = Number(new Intl.DateTimeFormat('it-IT', {
+    hour: 'numeric', hourCycle: 'h23', timeZone: 'Europe/Rome',
+  }).format(new Date()));
+  return ora < 5 ? 'Buonanotte' : ora < 13 ? 'Buongiorno' : ora < 18 ? 'Buon pomeriggio' : 'Buonasera';
+}
+
 /** Toccare una spesa la apre in correzione, da qualunque elenco. */
 function correggi(t) {
   apriModifica(t, getRegistro(), setRegistro, getConfig(), setConfig);
@@ -56,7 +70,7 @@ function corpo() {
     scrollTo({ top: 0 });
   };
   if (vista === 'registro') {
-    return vistaRegistro(registro, correggi, mese ?? oggiIso().slice(0, 7), vaiA);
+    return vistaRegistro(registro, correggi, mese ?? oggiIso().slice(0, 7), vaiA, config);
   }
   if (vista === 'analisi') {
     return vistaAnalisi({
@@ -73,7 +87,9 @@ function corpo() {
     });
   }
   if (vista === 'budget') return vistaBudget(registro, config, setConfig, setRegistro, setConfigZitto);
-  return vistaOggi(registro, config, correggi);
+  // Il giorno scelto nella striscia vive dentro la vista, come le classifiche
+  // in Analisi: per ridisegnarla basta rifare il giro da qui.
+  return vistaOggi(registro, config, correggi, disegna);
 }
 
 /**
@@ -132,8 +148,11 @@ function disegna() {
   // opzionali vanno filtrati prima, non passati e sperati.
   app.replaceChildren(...[
     el('header', { class: 'intestazione' }, [
-      el('div', { class: 'marchio' }, [NOME.slice(0, 3), el('span', { testo: NOME.slice(3) })]),
-      el('div', { class: 'data', testo: dataDiOggi() }),
+      el('div', { class: 'fila' }, [
+        el('div', { class: 'marchio', testo: NOME }),
+        el('div', { class: 'data', testo: dataDiOggi() }),
+      ]),
+      el('h1', { class: 'titolo-pagina', testo: titoloPagina() }),
     ]),
     corpo(),
     azioni(),
@@ -144,19 +163,57 @@ function disegna() {
   document.body.append(navigazione());
 }
 
-export function avvia() {
-  carica();
-  osserva(disegna);
-  disegna();
-
-  // Il giorno cambia anche mentre l'app e' aperta: tornando dopo mezzanotte il
-  // tetto dev'essere quello nuovo, non quello di ieri.
+/**
+ * Ridisegna quando cambia il giorno.
+ *
+ * Una PWA installata sulla Home non viene quasi mai chiusa: e' la stessa pagina
+ * per settimane, e la data l'ha letta una volta sola all'apertura. Senza
+ * qualcuno che la ricontrolli, a mezzanotte il tetto resta quello di ieri e la
+ * striscia dei sette giorni finisce sul giorno sbagliato - e a schermo non
+ * sembra un orologio fermo, sembra un'app che ha smesso di contare.
+ *
+ * Ci vogliono tutte e due le sponde. Gli eventi di risveglio non coprono l'app
+ * lasciata aperta a cavallo di mezzanotte, e su iOS in standalone il ritorno
+ * dallo sfondo non sempre passa da `visibilitychange` - per quello c'e' anche
+ * `pageshow`, che e' la strada della bfcache. La sveglia di mezzanotte non
+ * copre il caso opposto: in background iOS sospende i timer, e quello che
+ * doveva suonare alle 00:00 suona quando riapri. Per questo il confronto e'
+ * sempre sulla data vera e mai sul fatto che la sveglia sia suonata: se e'
+ * suonata tardi il giro seguente rimette a posto l'ora, se e' suonata presto
+ * non ridisegna niente.
+ */
+function orologio() {
   let giorno = oggiIso();
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState !== 'visible') return;
+  let sveglia = null;
+
+  // Il secondo in piu' e' perche' la sveglia non suoni sul confine: puntata
+  // esatta puo' scattare un istante prima, trovare ancora la data di ieri e
+  // ripuntarsi sullo stesso istante, in cerchio.
+  const punta = () => {
+    clearTimeout(sveglia);
+    sveglia = setTimeout(controlla, mancaAllaMezzanotte(giorno, Date.now()) + 1000);
+  };
+
+  function controlla() {
     if (oggiIso() !== giorno) {
       giorno = oggiIso();
       disegna();
     }
+    punta();
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') controlla();
   });
+  // Il ritorno dalla bfcache: su iOS e' la strada che l'app installata prende
+  // piu' spesso, e da sola non fa scattare `visibilitychange`.
+  window.addEventListener('pageshow', controlla);
+  punta();
+}
+
+export function avvia() {
+  carica();
+  osserva(disegna);
+  disegna();
+  orologio();
 }

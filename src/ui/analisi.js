@@ -11,11 +11,12 @@
 // domani. La terza dice quando, che e' quello che serve per non arrivare al
 // sabato con il tetto gia' finito.
 
-import { el, euro, euroTondo, tinta, iniziali, dataBreve, nomeMese } from './comune.js';
+import { el, euro, euroTondo, stileTinta, iniziali, dataBreve, nomeMese, siglaMese } from './comune.js';
 import {
-  raggruppa, perRicorrenza, unaTantum, perCategoria, perGiornoSettimana,
-  riepilogoAnalitico, andamentoMesi,
+  perRicorrenza, unaTantum, perCategoria, perGiornoSettimana,
+  riepilogoAnalitico, andamentoMesi, flussoDiCassa, impostaCategoriaGruppo,
 } from '../domain/statistiche.js';
+import { sceltaCategoria } from './categorie.js';
 import { impronta, mesiDelRegistro, meseDi, giornoDi } from '../domain/registro.js';
 import { spesa, elencoVuoto, barraMesi } from './registro.js';
 
@@ -23,11 +24,6 @@ import { spesa, elencoVuoto, barraMesi } from './registro.js';
 // senza scorrere: piu' in la' la classifica smette di essere una classifica e
 // diventa di nuovo un elenco.
 const QUANTE = 8;
-
-// Etichette proposte, non assegnate. Nessuna finisce addosso a un esercente da
-// sola: sono solo i tasti piu' comodi di una tastiera, e ce n'e' una per
-// scriverne una qualsiasi.
-const SUGGERITE = ['Spesa', 'Casa', 'Auto', 'Bar e ristoranti', 'Salute', 'Svago', 'Persone', 'Abbonamenti'];
 
 // Lo stato della schermata, non dei dati: quale classifica e' aperta per intero
 // e se si guarda per esercente o per categoria. Sta qui e non nella
@@ -42,7 +38,7 @@ function riga(g, quota, alTocco, dettaglio) {
     class: 'gruppo', type: 'button',
     onclick: alTocco ? () => alTocco(g) : null,
   }, [
-    el('span', { class: 'sigillo', style: `background:${tinta(g.nome)}`, testo: iniziali(g.nome) }),
+    el('span', { class: 'sigillo', style: stileTinta(g.nome), testo: iniziali(g.nome) }),
     el('span', { class: 'nome' }, [
       el('b', { testo: g.nome }),
       el('small', { testo: dettaglio }),
@@ -75,7 +71,7 @@ function apriTutto(nome, ridisegna) {
 
 /** L'intestazione di una carta, con a destra un comando facoltativo. */
 function titolo(testo, destra) {
-  return el('div', { class: 'giorno' }, [el('span', { testo }), destra]);
+  return el('div', { class: 'testa-carta' }, [el('span', { testo }), destra]);
 }
 
 /**
@@ -208,19 +204,22 @@ function quando(registro, mese) {
 
   return el('div', { class: 'carta sezione settimana' }, [
     titolo('Quando spendi'),
+    // Stessa impalcatura della striscia in Oggi - sigla dentro la colonna - cosi'
+    // i due grafici dell'app restano allineati anche quando cambia il tipo di
+    // carattere: due file separate da tenere alla stessa larghezza scivolano.
     el('div', { class: 'grafico' }, giorni.map((g, i) => el('div', {
       class: 'gambo' + (g === caro ? ' oggi' : ''),
-      title: `${g.nome}: ${euro(g.media)} in media su ${g.giorni}`,
+      'aria-label': `${g.nome}: ${euro(g.media)} in media su ${g.giorni}`,
     }, [
-      el('span', {
-        class: 'riempimento',
-        style: `height:${(g.media > 0 ? Math.max(4, (g.media / cima) * 100) : 0).toFixed(1)}%;`
-          + `transition-delay:${i * 45}ms`,
-      }),
+      el('span', { class: 'asta' }, [
+        el('span', {
+          class: 'riempimento',
+          style: `height:${(g.media > 0 ? Math.max(4, (g.media / cima) * 100) : 0).toFixed(1)}%;`
+            + `transition-delay:${i * 45}ms`,
+        }),
+      ]),
+      el('span', { class: 'sigla' }, [el('span', { testo: g.sigla })]),
     ]))),
-    el('div', { class: 'sigle' }, giorni.map((g) => el('span', {
-      class: g === caro ? 'oggi' : null, testo: g.sigla,
-    }))),
     el('div', { class: 'nota', testo:
       `In media ${articolo(caro)} escono ${euro(caro.media)}, ${articolo(leggero)} ${euro(leggero.media)}${pesa}` }),
   ]);
@@ -262,6 +261,69 @@ function mesi(registro, oggi, mese, vaiA) {
   ]);
 }
 
+/**
+ * Entrate e uscite, gli ultimi sei mesi.
+ *
+ * E' il grafico di cassa di Monarch: le entrate salgono sopra la linea, le
+ * uscite scendono sotto, e un mese in cui la parte di sotto e' piu' lunga di
+ * quella di sopra si vede senza leggere niente. Le uscite qui sono tutte,
+ * fisse comprese, perche' la domanda non e' dove tagliare ma se basta.
+ *
+ * Compare solo se nel registro c'e' almeno un'entrata: le entrate arrivano
+ * con l'estratto conto, e senza sarebbe un grafico di sole uscite con la
+ * meta' di sopra vuota, che sembra un mese disastroso invece di un dato che
+ * manca.
+ */
+function flussi(registro, oggi, mese, vaiA) {
+  const tutti = flussoDiCassa(registro, oggi);
+  if (!tutti.some((m) => m.entrate > 0)) return null;
+
+  const ultimi = tutti.slice(-6);
+  const scelto = ultimi.find((m) => m.mese === mese) ?? ultimi[ultimi.length - 1];
+  const massimo = Math.max(...ultimi.map((m) => Math.max(m.entrate, m.uscite)), 1);
+  const altezza = (v) => `${(v > 0 ? Math.max(3, (v / massimo) * 100) : 0).toFixed(1)}%`;
+
+  return el('div', { class: 'carta sezione flussi' }, [
+    titolo('Entrate e uscite', el('span', { class: 'legenda' }, [
+      el('span', {}, [el('i', { style: 'border-top-color:var(--ok)' }), 'entrate']),
+      el('span', {}, [el('i', { style: 'border-top-color:var(--allarme)' }), 'uscite']),
+    ])),
+    el('div', { class: 'colonne' }, ultimi.map((m) => el('button', {
+      class: 'mese-col' + (m === scelto ? ' scelto' : '') + (m.completo || m.inCorso ? '' : ' spento-col'),
+      type: 'button',
+      'aria-pressed': m === scelto ? 'true' : 'false',
+      'aria-label': `${nomeMese(m.mese)}: entrate ${euro(m.entrate)}, uscite ${euro(m.uscite)}`,
+      onclick: () => vaiA(m.mese),
+    }, [
+      el('span', { class: 'su', style: 'height:64px' }, [el('span', { style: `height:${altezza(m.entrate)}` })]),
+      el('span', { class: 'giu', style: 'height:64px' }, [el('span', { style: `height:${altezza(m.uscite)}` })]),
+      el('span', { class: 'sigla' }, [el('span', { testo: siglaMese(m.mese) })]),
+    ]))),
+    el('div', { class: 'quadro' }, [
+      el('div', {}, [
+        el('div', { class: 'valore soldi entrata', testo: euroTondo(scelto.entrate) }),
+        el('div', { class: 'chiave', testo: 'entrate' }),
+      ]),
+      el('div', {}, [
+        el('div', { class: 'valore soldi', testo: euroTondo(scelto.uscite) }),
+        el('div', { class: 'chiave', testo: `uscite · ${euroTondo(scelto.fisse)} fisse` }),
+      ]),
+      el('div', {}, [
+        el('div', { class: 'valore soldi' + (scelto.netto < 0 ? ' rosso' : ''), testo: euroTondo(scelto.netto) }),
+        // Il tasso e' la cifra che Monarch mette in grande, ma senza entrate
+        // non esiste: si scrive "rimasti" e basta, invece di uno 0% inventato.
+        el('div', { class: 'chiave', testo: scelto.tasso === null ? 'rimasti' : `rimasti · ${String(scelto.tasso).replace('.', ',')}%` }),
+      ]),
+    ]),
+    scelto.inCorso
+      ? el('div', { class: 'nota fioco', testo: 'Mese in corso: lo stipendio potrebbe non essere ancora arrivato.' })
+      : !scelto.completo
+        ? el('div', { class: 'nota fioco', testo: 'Il registro vede solo una parte di questo mese: '
+          + 'le entrate che mancano non sono entrate mancate.' })
+        : null,
+  ]);
+}
+
 // --------------------------------------------------------------------------
 // Il foglio di un esercente: che categoria ha, con chi va unito, cosa ci sta
 // dentro.
@@ -269,18 +331,6 @@ function mesi(registro, oggi, mese, vaiA) {
 // "a agosto" e "a aprile" si leggono come un inciampo: davanti a vocale ci va
 // la d eufonica, e sono gli unici due mesi in cui serve.
 const aMese = (mese) => (/^[aeiou]/.test(mese) ? 'ad ' : 'a ') + mese;
-
-/** Le categorie gia' usate, piu' quelle proposte, senza ripetizioni. */
-function etichette(config) {
-  const usate = [...new Set(Object.values(config?.categorie ?? {}).filter(Boolean))].sort();
-  return [...usate, ...SUGGERITE.filter((s) => !usate.includes(s))];
-}
-
-function scriviCategoria(config, chiave, valore, salvaConfig) {
-  const categorie = { ...(config.categorie ?? {}) };
-  if (valore) categorie[chiave] = valore; else delete categorie[chiave];
-  salvaConfig({ ...config, categorie });
-}
 
 /**
  * Unisce due gruppi, o li separa.
@@ -307,34 +357,14 @@ export function apriGruppo(gruppo, contesto) {
   const dentro = registro.filter((t) => meseDi(t) === mese
     && gruppo.grafie.includes(t.merchant) && !t.entrata && !t.fissa);
 
-  const chips = el('div', { class: 'etichette' });
-  const disegnaChips = (attuale) => {
-    chips.replaceChildren(...etichette({ ...config, categorie: { ...(config.categorie ?? {}), [gruppo.chiave]: attuale } })
-      .map((nome) => el('button', {
-        class: 'etichetta' + (nome === attuale ? ' scelta' : ''),
-        type: 'button', testo: nome,
-        onclick: () => {
-          const nuova = nome === attuale ? null : nome;
-          scriviCategoria(config, gruppo.chiave, nuova, salvaConfig);
-          config.categorie = { ...(config.categorie ?? {}) };
-          if (nuova) config.categorie[gruppo.chiave] = nuova; else delete config.categorie[gruppo.chiave];
-          disegnaChips(nuova);
-        },
-      })));
-    chips.append(el('button', {
-      class: 'etichetta nuova', type: 'button', testo: '+ altra',
-      onclick: () => {
-        const scritta = prompt('Come la chiami?', attuale ?? '');
-        if (scritta === null) return;
-        const pulita = scritta.trim().slice(0, 24);
-        scriviCategoria(config, gruppo.chiave, pulita || null, salvaConfig);
-        config.categorie = { ...(config.categorie ?? {}) };
-        if (pulita) config.categorie[gruppo.chiave] = pulita; else delete config.categorie[gruppo.chiave];
-        disegnaChips(pulita || null);
-      },
-    }));
-  };
-  disegnaChips(gruppo.categoria);
+  // La configurazione di adesso, non quella con cui il foglio si e' aperto:
+  // scegliere una categoria e poi unire due grafie deve salvarle tutte e due,
+  // e con la copia di partenza la seconda cancellerebbe la prima.
+  let attuale = config;
+  const chips = sceltaCategoria(config, gruppo.categoria, (c) => {
+    attuale = impostaCategoriaGruppo(attuale, gruppo.chiave, c);
+    salvaConfig(attuale);
+  });
 
   const scelta = el('select', { class: 'unisci' }, [
     el('option', { value: '', testo: 'Unisci a un altro esercente…' }),
@@ -345,7 +375,7 @@ export function apriGruppo(gruppo, contesto) {
   ]);
   scelta.addEventListener('change', () => {
     if (!scelta.value) return;
-    scriviAlias(config, gruppo, scelta.value, salvaConfig);
+    scriviAlias(attuale, gruppo, scelta.value, salvaConfig);
     chiudi();
   });
 
@@ -382,14 +412,14 @@ export function apriGruppo(gruppo, contesto) {
       gruppo.unito ? el('button', {
         class: 'bottone tenue', type: 'button', testo: 'Separa di nuovo',
         onclick: () => {
-          scriviAlias(config, gruppo, null, salvaConfig);
+          scriviAlias(attuale, gruppo, null, salvaConfig);
           chiudi();
         },
       }) : null,
     ]),
 
     el('div', { class: 'carta', style: 'margin-top:14px' }, [
-      el('div', { class: 'giorno' }, [
+      el('div', { class: 'testa-carta' }, [
         el('span', { testo: 'Le spese' }),
         el('span', { class: 'totale soldi', testo: euro(gruppo.totale) }),
       ]),
@@ -420,7 +450,7 @@ export function vistaAnalisi(contesto) {
     ]);
   }
 
-  const elenco = mesiDelRegistro(registro);
+  const elenco = mesiDelRegistro(registro, oggi);
   const corrente = elenco.includes(mese) ? mese : elenco[0];
   const r = riepilogoAnalitico(registro, corrente, config);
   const apri = (g) => apriGruppo(g, { ...contesto, mese: corrente, gruppi: r.gruppi });
@@ -457,6 +487,7 @@ export function vistaAnalisi(contesto) {
         + `di questo mese, dal ${dataBreve(r.copertura.da)} al ${dataBreve(r.copertura.a)}.` }) : null,
     ]),
 
+    flussi(registro, oggi, corrente, vaiA),
     dove(r, config, apri, ridisegna),
     ripete(r, apri, ridisegna),
     quando(registro, corrente),

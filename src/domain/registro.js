@@ -468,9 +468,22 @@ export function sostituisciPeriodo(registro, nuove, da, a) {
 /** Il mese "YYYY-MM" di una transazione. */
 export const meseDi = (t) => String(t.occurredAt).slice(0, 7);
 
-/** I mesi presenti nel registro, dal piu' recente. */
-export function mesiDelRegistro(registro) {
-  return [...new Set((registro ?? []).map(meseDi))].sort().reverse();
+/**
+ * I mesi che le viste a mese possono mostrare, dal piu' recente.
+ *
+ * Sono quelli con dentro qualcosa, piu' - se glielo si dice - il mese di oggi
+ * anche quando e' ancora vuoto. Il primo del mese il registro non ha ancora
+ * niente del mese nuovo, e senza questo l'app resta ferma su quello prima con
+ * la freccia avanti spenta: l'intestazione dice "1 settembre" e sotto non c'e'
+ * modo di arrivarci. Un mese vuoto che dice di esserlo e' un'informazione; un
+ * mese irraggiungibile sembra un guasto.
+ *
+ * `oggi` arriva come argomento e non dall'orologio, come tutto qui dentro.
+ */
+export function mesiDelRegistro(registro, oggi) {
+  const mesi = new Set((registro ?? []).map(meseDi));
+  if (oggi) mesi.add(String(oggi).slice(0, 7));
+  return [...mesi].sort().reverse();
 }
 
 /** "2026-08" piu' o meno un numero di mesi. */
