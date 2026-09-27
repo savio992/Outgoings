@@ -6,8 +6,10 @@
 // fra un saldo che sembra alto e un saldo che lo e'.
 //
 // Nessuna previsione inventata. Una ricorrenza si riconosce solo guardandola
-// ripetersi: vista in due mesi diversi e' una ricorrenza, vista una volta e'
-// un'uscita fissa di cui non sappiamo ancora il ritmo, e lo dice.
+// ripetersi, e ripetersi *ogni mese*: vista in due mesi di fila e' mensile,
+// vista una volta - o a mesi alterni, come certe bollette - e' un'uscita fissa
+// di cui non sappiamo il ritmo, e lo dice invece di annunciarla per il mese
+// sbagliato.
 
 import { giornoDi, meseDi, impronta, meseSpostato } from './registro.js';
 
@@ -56,6 +58,7 @@ export function ricorrenti(registro, oggi) {
   // mandato chiuso, o una quota annuale. Tenerla in lista ogni mese vorrebbe
   // dire annunciare per sempre un'uscita che non tornera'.
   const recente = meseSpostato(meseOggi, -1);
+  const primaAncora = meseSpostato(meseOggi, -2);
 
   const voci = [...gruppi.entries()].filter(([, righe]) => righe.some((t) => meseDi(t) >= recente)).map(([k, righe]) => {
     const ordinate = righe.slice().sort((a, b) => (giornoDi(a) < giornoDi(b) ? -1 : giornoDi(a) > giornoDi(b) ? 1 : 0));
@@ -79,9 +82,13 @@ export function ricorrenti(registro, oggi) {
       ultimo: giornoDi(ultima),
       prevista: stato === 'pagata' ? giornoDi(pagata[pagata.length - 1]) : prevista,
       mesi: mesi.size,
-      // Una volta sola non e' un ritmo: e' una fissa di cui si sa il giorno
-      // di un mese solo.
-      certa: mesi.size >= 2,
+      // Mensile vuol dire due mesi di fila, gli ultimi: una bolletta vista a
+      // luglio e a settembre non e' "in arrivo" a ottobre, arriva a novembre.
+      certa: (mesi.has(meseOggi) && mesi.has(recente)) || (mesi.has(recente) && mesi.has(primaAncora)),
+      // Pagata questo mese e mai vista prima: se ha un altro nome di una delle
+      // attese - la notifica e la banca chiamano lo stesso posto in due modi -
+      // quella attesa e' gia' uscita, e chi somma "mancano" lo deve sapere.
+      nuova: mesi.size === 1 && pagata.length > 0,
       stato,
     };
   });
@@ -91,7 +98,8 @@ export function ricorrenti(registro, oggi) {
   const peso = { attesa: 0, 'in arrivo': 1, pagata: 2 };
   voci.sort((a, b) => peso[a.stato] - peso[b.stato]
     || (a.prevista < b.prevista ? -1 : a.prevista > b.prevista ? 1 : 0)
-    || (a.nome < b.nome ? -1 : 1));
+    || (a.nome < b.nome ? -1 : a.nome > b.nome ? 1 : 0)
+    || (a.chiave < b.chiave ? -1 : a.chiave > b.chiave ? 1 : 0));
 
   // Solo le ricorrenze vere pesano sul "manca ancora": una fissa vista una
   // volta potrebbe essere stata l'ultima rata, e contarla vorrebbe dire
@@ -101,5 +109,6 @@ export function ricorrenti(registro, oggi) {
     voci,
     daPagare: centesimi(daPagare.reduce((s, v) => s + v.importo, 0)),
     pagate: centesimi(voci.reduce((s, v) => s + v.pagatoQuestoMese, 0)),
+    nuove: voci.filter((v) => v.nuova).length,
   };
 }

@@ -418,3 +418,10 @@ test('i limiti non toccano il tetto giornaliero', () => {
   const con = statoGiorno({ ...CONFIG, categorie: { bar: 'Bar' }, limiti: { Bar: 30 } }, r, '2026-09-02');
   assert.equal(con.soglia, senza.soglia);
 });
+
+test('un piano corto non e' + "'" + ' risparmio preso dalle spese', () => {
+  const r = ripartizioneMese({ stipendio: 1000, usciteFisse: [{ importo: 800 }], risparmio: 300 }, [], '2026-09-10');
+  assert.equal(r.eroso, 0);
+  assert.equal(r.pianoCorto, 100);
+  assert.deepEqual(r.voci.map((v) => v.importo), [800, 200, 0, 0]);
+});

@@ -243,17 +243,28 @@ export function vistaRegistro(registro, alTocco, mese, vaiA, config = {}) {
   // Il campo non si ridisegna mai mentre ci si scrive dentro: si cambia solo
   // quello che sta sotto. Rifare tutta la vista a ogni lettera lo ricreerebbe,
   // e la tastiera si chiuderebbe dopo il primo carattere.
-  const aggiorna = () => {
-    const quante = registro.filter(FILTRI.verificare).length;
-    filtri.replaceChildren(...Object.entries(NOMI_FILTRI)
-      .filter(([k]) => k !== 'verificare' || quante)
-      .map(([k, nome]) => el('button', {
-        class: 'filtro', type: 'button', 'aria-pressed': filtro === k ? 'true' : 'false',
+  //
+  // Anche le pastiglie dei filtri restano quelle: si cambia solo quale e'
+  // accesa. Ricrearle a ogni tocco mandava il fuoco di VoiceOver e della
+  // tastiera in cima alla pagina.
+  const quante = registro.filter(FILTRI.verificare).length;
+  const pastiglie = Object.entries(NOMI_FILTRI)
+    .filter(([k]) => k !== 'verificare' || quante)
+    .map(([k, nome]) => {
+      const b = el('button', {
+        class: 'filtro', type: 'button',
         onclick: () => {
           filtro = filtro === k && k !== 'tutti' ? 'tutti' : k;
           aggiorna();
         },
-      }, [nome, k === 'verificare' ? el('span', { class: 'conta', testo: String(quante) }) : null])));
+      }, [nome, k === 'verificare' ? el('span', { class: 'conta', testo: String(quante) }) : null]);
+      b.dataset.filtro = k;
+      return b;
+    });
+  filtri.append(...pastiglie);
+
+  const aggiorna = () => {
+    for (const b of pastiglie) b.setAttribute('aria-pressed', filtro === b.dataset.filtro ? 'true' : 'false');
     const attiva = ricerca.trim() !== '' || filtro !== 'tutti';
     corpo.replaceChildren(...(attiva
       ? vistaRisultati(registro, alTocco, config)

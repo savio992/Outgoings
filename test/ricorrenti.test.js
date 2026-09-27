@@ -85,3 +85,18 @@ test('prima quello che manca, in fondo quello che e' + "'" + ' pagato', () => {
     ['C', 'in arrivo'], ['B', 'in arrivo'], ['A', 'pagata'],
   ]);
 });
+
+test('a mesi alterni non e' + "'" + ' mensile: non si annuncia per il mese sbagliato', () => {
+  const r = ricorrenti([fissa('2026-07-05', 'ACQUA', 90), fissa('2026-09-05', 'ACQUA', 90)], '2026-10-02');
+  assert.equal(r.voci[0].certa, false);
+  assert.equal(r.daPagare, 0);
+});
+
+test('una fissa pagata e mai vista prima si dichiara nuova', () => {
+  const r = ricorrenti([
+    fissa('2026-07-28', 'BANCA MUTUI', 630), fissa('2026-08-28', 'BANCA MUTUI', 630),
+    fissa('2026-09-03', 'Mutuo casa', 630, { source: 'screenshot' }),
+  ], '2026-09-10');
+  assert.equal(r.nuove, 1);
+  assert.equal(r.daPagare, 630);
+});

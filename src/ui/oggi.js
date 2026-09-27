@@ -133,7 +133,7 @@ function testata(s) {
  * Sono due domande diverse e due ritmi diversi - una si guarda entrando in un
  * bar, l'altra il venerdi' sera.
  */
-function soldi(s, saldo, daPagare) {
+function soldi(s, saldo, daPagare, nuove) {
   if (!saldo && !s.risparmio) return null;
 
   const fatto = Math.max(0, Math.min(s.risparmio, s.messoDaParte));
@@ -165,9 +165,16 @@ function soldi(s, saldo, daPagare) {
     // Le fisse che devono ancora passare non sono nel saldo, e il saldo sembra
     // piu' alto di quello che e'. E' una stima sopra una stima, quindi sta su
     // una riga sua e si chiama col suo nome - il saldo resta quello di sopra.
+    //
+    // Se questo mese e' passata una fissa mai vista prima, puo' essere una di
+    // quelle attese scritta con un altro nome - la notifica e la banca chiamano
+    // lo stesso posto in due modi - e allora qui sarebbe tolta due volte.
+    // Abbinarle a naso non si puo'; dirlo si'.
     saldo && daPagare > 0 ? el('div', { class: 'nota', testo:
       `Tolte le uscite fisse ancora da passare questo mese (${euro(daPagare)}), `
-      + `restano circa ${euro(saldo.stimato - daPagare)}.` }) : null,
+      + `restano circa ${euro(saldo.stimato - daPagare)}.`
+      + (nuove ? ` Questo mese e’ passata anche una fissa mai vista prima: se e’ una di quelle `
+        + 'attese scritta in un altro modo, qui e’ contata due volte.' : '') }) : null,
     // Un saldo vecchio non e' sbagliato, e' scaduto: dirlo costa una riga e
     // evita di far passare per il conto di oggi quello di tre settimane fa.
     saldo && saldo.giorni >= 10
@@ -207,7 +214,7 @@ function soldi(s, saldo, daPagare) {
  * la cambia. Cosi' il grafico si legge anche senza toccarlo.
  */
 function scelta(g) {
-  return el('div', { class: 'scelta' }, [
+  return el('div', { class: 'didascalia' }, [
     el('span', {}, [
       el('b', { testo: nomeGiorno(g.giorno) }),
       ' · ',
@@ -337,10 +344,13 @@ function andamento(a) {
   const L = 320;
   const A = 150;
   const n = a.giorni;
+  // Il mese scorso sulla scala di questo: un agosto di 31 giorni accanto a un
+  // settembre di 30 si ferma al 30, che e' fin dove il confronto ha senso.
+  const precedente = a.precedente.slice(0, n);
   const x = (d) => ((d - 1) / Math.max(1, n - 1)) * L;
   const alRitmo = (d) => (a.disponibile * d) / n;
   const cima = Math.max(
-    ...a.questo, ...a.precedente,
+    ...a.questo, ...precedente,
     a.ritmo !== null ? alRitmo(Math.min(n, a.oggi + 3)) : 0,
     1,
   ) * 1.12;
@@ -351,7 +361,7 @@ function andamento(a) {
   const disegno = svg('svg', { viewBox: `0 0 ${L} ${A}`, preserveAspectRatio: 'none', 'aria-hidden': 'true' });
   for (const f of [0.5, 1]) disegno.append(svg('line', { class: 'griglia', x1: 0, x2: L, y1: y(cima * f / 1.12), y2: y(cima * f / 1.12) }));
   disegno.append(svg('line', { class: 'griglia', x1: 0, x2: L, y1: A - 0.5, y2: A - 0.5 }));
-  if (a.precedente.length) disegno.append(svg('path', { class: 'scorso', d: linea(a.precedente), 'vector-effect': 'non-scaling-stroke' }));
+  if (precedente.length) disegno.append(svg('path', { class: 'scorso', d: linea(precedente), 'vector-effect': 'non-scaling-stroke' }));
   if (a.ritmo !== null) {
     disegno.append(svg('path', {
       class: 'ritmo', 'vector-effect': 'non-scaling-stroke',
@@ -371,11 +381,11 @@ function andamento(a) {
   disegno.append(guida);
   const puntoQuesto = el('span', { class: 'punto-html questo-p' });
   const puntoScorso = el('span', { class: 'punto-html scorso-p' });
-  const didascalia = el('div', { class: 'scelta' });
+  const didascalia = el('div', { class: 'didascalia' });
 
   const mostra = (d) => {
     const qui = d <= a.oggi ? a.questo[d - 1] : null;
-    const prima = d <= a.precedente.length ? a.precedente[d - 1] : null;
+    const prima = d <= precedente.length ? precedente[d - 1] : null;
     guida.setAttribute('x1', x(d));
     guida.setAttribute('x2', x(d));
     const metti = (punto, v) => {
@@ -516,7 +526,7 @@ export function vistaOggi(registro, config, alTocco, ridisegna) {
 
     fisse,
 
-    soldi(s, saldoStimato(config, registro, giorno), ric.daPagare),
+    soldi(s, saldoStimato(config, registro, giorno), ric.daPagare, ric.nuove),
 
     // L'elenco segue la barra toccata. La testata no: risponde a "quanto posso
     // spendere oggi", e oggi resta oggi qualunque giorno si stia guardando.

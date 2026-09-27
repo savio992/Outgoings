@@ -101,6 +101,12 @@ export function vistaBudget(registroIniziale, configIniziale, setConfig, setRegi
       ]),
       // Lo sfondamento si dice a parole: nella barra e' gia' dentro "spese",
       // e un pezzo rosso in piu' sembrerebbe un'altra voce di spesa.
+      // Il piano corto e' un'altra cosa dallo sfondamento: non l'hanno causato
+      // le spese, e' scritto nei numeri qui sotto prima ancora di cominciare.
+      r.pianoCorto > 0 ? el('div', { class: 'avviso' }, [
+        'Uscite fisse e risparmio sommano ', el('b', { class: 'soldi', testo: euro(r.pianoCorto) }),
+        ' piu’ dello stipendio: il risparmio scritto qui sotto non ci sta tutto.',
+      ]) : null,
       r.eroso > 0 ? el('div', { class: 'avviso' }, [
         'Le spese hanno gia’ preso ', el('b', { class: 'soldi', testo: euro(r.eroso) }), ' dal risparmio',
         r.oltre > 0 ? [' e sono andate oltre lo stipendio di ', el('b', { class: 'soldi', testo: euro(r.oltre) })] : null,
@@ -295,11 +301,14 @@ export function vistaBudget(registroIniziale, configIniziale, setConfig, setRegi
       ]);
     }
 
-    const righe = usate.map((categoria) => {
+    const righe = usate.map((categoria, i) => {
       const sotto = el('div');
       const input = campoEuro(config.limiti?.[categoria], (v) => {
         scrivendo({ limiti: { ...(config.limiti ?? {}), [categoria]: v } });
       });
+      // L'etichetta punta al campo: senza, VoiceOver legge "campo di testo" e
+      // basta, e dieci campi uguali non si distinguono.
+      input.id = `limite-${i}`;
       limitiDinamici.push(() => {
         const b = budgetCategorie(config, registro, mese, oggiIso());
         const riga = b.righe.find((c) => c.categoria === categoria);
@@ -325,7 +334,7 @@ export function vistaBudget(registroIniziale, configIniziale, setConfig, setRegi
         );
       });
       return el('div', { class: 'limite' }, [
-        el('div', { class: 'fila' }, [el('label', { testo: categoria }), input]),
+        el('div', { class: 'fila' }, [el('label', { for: input.id, testo: categoria }), input]),
         sotto,
       ]);
     });

@@ -373,21 +373,29 @@ export function andamentoDelMese(config, registro, giorno) {
 export function ripartizioneMese(config, registro, giorno) {
   const s = statoGiorno(config, registro, giorno);
   const stipendio = centesimi(Math.max(0, Number(config?.stipendio) || 0));
-  const resta = Math.max(0, s.restoMese);
-  const sfondo = Math.max(0, -s.restoMese);
-  const risparmio = Math.max(0, s.risparmio - sfondo);
+  // Due buchi diversi, da non confondere. Il piano puo' essere corto da solo -
+  // fisse e risparmio sommano piu' dello stipendio - senza aver speso niente:
+  // li' il risparmio non e' stato "preso dalle spese", non c'e' mai stato.
+  // Solo quello che le spese mangiano oltre il flessibile e' eroso.
+  const spazio = Math.max(0, stipendio - s.usciteFisse);
+  const risparmioPossibile = Math.min(s.risparmio, spazio);
+  const flessibile = Math.max(0, s.disponibile);
+  const sfondo = Math.max(0, s.spesoMese - flessibile);
+  const eroso = Math.min(risparmioPossibile, sfondo);
   const voci = [
     { chiave: 'fisse', nome: 'Uscite fisse', importo: s.usciteFisse },
-    { chiave: 'risparmio', nome: 'Da parte', importo: centesimi(risparmio) },
+    { chiave: 'risparmio', nome: 'Da parte', importo: centesimi(risparmioPossibile - eroso) },
     { chiave: 'speso', nome: 'Spese del mese', importo: s.spesoMese },
-    { chiave: 'resta', nome: 'Ancora da spendere', importo: centesimi(resta) },
+    { chiave: 'resta', nome: 'Ancora da spendere', importo: centesimi(Math.max(0, flessibile - s.spesoMese)) },
   ];
   const totale = centesimi(voci.reduce((t, v) => t + v.importo, 0));
   return {
     stipendio,
     voci,
     totale,
-    eroso: centesimi(Math.min(s.risparmio, sfondo)),
+    eroso: centesimi(eroso),
+    // Quanto manca al piano prima ancora di cominciare il mese.
+    pianoCorto: centesimi(Math.max(0, s.usciteFisse + s.risparmio - stipendio)),
     oltre: centesimi(Math.max(0, totale - stipendio)),
   };
 }

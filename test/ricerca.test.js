@@ -65,3 +65,17 @@ test('la somma tiene le entrate a parte', () => {
   assert.deepEqual(sommaMovimenti(cercaMovimenti(REGISTRO, { testo: 'anna' })),
     { quante: 2, uscite: 50, entrate: 120 });
 });
+
+test('le migliaia col punto, il segno e un importo scritto a meta' + "'", () => {
+  const r = [riga('2026-09-01', 'Auto', 1234), riga('2026-09-01', 'Bar', 1.5), riga('2026-09-01', 'Spesa', 12.5)];
+  assert.deepEqual(nomi(cercaMovimenti(r, { testo: '1.234' })), ['Auto']);
+  assert.deepEqual(nomi(cercaMovimenti(r, { testo: '€1.234' })), ['Auto']);
+  assert.deepEqual(nomi(cercaMovimenti(r, { testo: '1.234,00' })), ['Auto']);
+  assert.deepEqual(nomi(cercaMovimenti(r, { testo: '-12,50' })), ['Spesa']);
+  assert.deepEqual(nomi(cercaMovimenti(r, { testo: '12,' })), ['Spesa']);
+});
+
+test('accrediti e fisse non hanno categoria, neanche nella ricerca', () => {
+  const config = { categorie: { enel: 'Casa' } };
+  assert.deepEqual(nomi(cercaMovimenti(REGISTRO, { testo: 'casa' }, config)), []);
+});

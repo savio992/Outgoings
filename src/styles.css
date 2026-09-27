@@ -297,16 +297,16 @@ button.gambo { cursor: pointer; }
 }
 .gambo:active .asta { opacity: .6; }
 
-.scelta {
+.didascalia {
   display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 2px 12px;
   margin: 2px 18px 14px; padding: 10px 12px;
   border-radius: 10px; background: var(--carta-alt);
   font-size: 13px; color: var(--testo-tenue);
 }
-.scelta > span { white-space: nowrap; }
-.scelta b { color: var(--testo); font-weight: 620; }
-.scelta .oltre { color: var(--allarme-testo); font-weight: 600; }
-.scelta .sotto { color: var(--ok-testo); font-weight: 600; }
+.didascalia > span { white-space: nowrap; }
+.didascalia b { color: var(--testo); font-weight: 620; }
+.didascalia .oltre { color: var(--allarme-testo); font-weight: 600; }
+.didascalia .sotto { color: var(--ok-testo); font-weight: 600; }
 
 /* --- l'andamento del mese ---------------------------------------------- */
 
@@ -339,7 +339,7 @@ button.gambo { cursor: pointer; }
   pointer-events: none;
 }
 .punto-html.scorso-p { border-color: var(--neutro); }
-.andamento .scelta { margin-top: 10px; }
+.andamento .didascalia { margin-top: 10px; }
 .assi {
   display: flex; justify-content: space-between;
   margin: 4px 18px 0;

@@ -130,12 +130,10 @@ export function raggruppa(registro, mese, config = {}) {
         ultimo: g.ultimo,
         unito: g.unito || grafie.length > 1,
         // Unendo due gruppi la chiave cambia, e la categoria che stava su una
-        // delle due grafie sparirebbe: si va a cercarla anche li'. Le grafie
-        // sono ordinate, quindi a parita' vince sempre la stessa e due letture
-        // degli stessi dati danno la stessa risposta.
-        categoria: categorie[g.chiave]
-          ?? grafie.map((f) => categorie[impronta(f)]).find(Boolean)
-          ?? null,
+        // delle due grafie sparirebbe: `categoriaDelGruppo` va a cercarla anche
+        // li'. E' la stessa funzione che usa `categoriaDi`, cosi' la riga e la
+        // classifica non possono dare due risposte.
+        categoria: categoriaDelGruppo(g.chiave, config),
       };
     })
     // A parita' di totale il nome, cosi' due disegni della stessa schermata
@@ -302,7 +300,28 @@ export function andamentoMesi(registro, oggi) {
 }
 
 /**
- * La categoria di una spesa sola, con la stessa regola dei gruppi.
+ * Le chiavi in cui la categoria di un gruppo puo' stare: la sua, e quelle di
+ * tutte le grafie che un alias ha unito a lui. Ordinate, cosi' a parita' vince
+ * sempre la stessa.
+ *
+ * Non dipende dal mese. Guardare solo le grafie comparse nel mese farebbe
+ * cambiare categoria a un esercente a seconda di come la banca l'ha scritto
+ * quel mese, e la stessa spesa sarebbe "Spesa" a luglio e senza categoria ad
+ * agosto.
+ */
+function chiaviDelGruppo(chiave, alias) {
+  const unite = Object.keys(alias).filter((k) => k !== chiave && impronta(alias[k]) === chiave).sort();
+  return [chiave, ...unite];
+}
+
+/** La categoria di un gruppo, dalla sua chiave. La regola e' una sola: questa. */
+export function categoriaDelGruppo(chiave, config = {}) {
+  const categorie = config.categorie ?? {};
+  return chiaviDelGruppo(chiave, config.alias ?? {}).map((k) => categorie[k]).find(Boolean) ?? null;
+}
+
+/**
+ * La categoria di una spesa sola: quella del suo gruppo.
  *
  * Le categorie stanno sull'esercente e non sulla transazione: si scelgono una
  * volta, e da li' valgono per tutto cio' che va allo stesso posto. Qui si
@@ -310,21 +329,13 @@ export function andamentoMesi(registro, oggi) {
  * risposta deve essere quella di `raggruppa`, o la stessa spesa sarebbe
  * "Spesa" nell'elenco e "Senza categoria" nella classifica.
  *
- * Si cerca prima sulla chiave del gruppo (il nome dopo gli alias), poi sulla
- * grafia grezza, poi sulle altre grafie unite allo stesso nome: dopo un'unione
- * la categoria puo' essere rimasta attaccata al nome di prima.
+ * Solo le spese di tutti i giorni ne hanno una: accrediti e uscite fisse
+ * stanno fuori dalle classifiche e dai limiti, e un'etichetta che non conta
+ * da nessuna parte direbbe il contrario.
  */
 export function categoriaDi(t, config = {}) {
-  const alias = config.alias ?? {};
-  const categorie = config.categorie ?? {};
-  const grezza = impronta(t?.merchant);
-  const chiave = chiaveDiGruppo(t?.merchant, alias);
-  if (categorie[chiave]) return categorie[chiave];
-  if (categorie[grezza]) return categorie[grezza];
-  const unite = Object.keys(alias)
-    .filter((k) => impronta(alias[k]) === chiave)
-    .sort();
-  return unite.map((k) => categorie[k]).find(Boolean) ?? null;
+  if (!t || !eSpesaVariabile(t)) return null;
+  return categoriaDelGruppo(chiaveDiGruppo(t.merchant, config.alias ?? {}), config);
 }
 
 /** La chiave sotto cui `raggruppa` conta un esercente: e' li' che sta la categoria. */
@@ -380,24 +391,28 @@ export function flussoDiCassa(registro, oggi) {
 }
 
 /**
- * La configurazione con la categoria di un esercente cambiata.
+ * La configurazione con la categoria di un gruppo cambiata, dalla sua chiave.
  *
- * Si scrive sulla chiave del gruppo, che e' dove `raggruppa` la cerca per
- * prima. Toglierla invece vuol dire toglierla da tutti i posti in cui
- * `categoriaDi` la troverebbe: altrimenti una categoria rimasta sulla grafia
- * di prima di un'unione tornerebbe fuori da sola, e il tocco che la spegne
- * sembrerebbe non aver fatto niente.
+ * Si scrive sulla chiave del gruppo, che e' dove si cerca per prima. Toglierla
+ * invece vuol dire toglierla da tutte le chiavi in cui `categoriaDelGruppo` la
+ * troverebbe: altrimenti una categoria rimasta sulla grafia di prima di
+ * un'unione tornerebbe fuori da sola, e il tocco che la spegne sembrerebbe non
+ * aver fatto niente.
+ *
+ * Dalla chiave e non dal nome: con due alias in fila il nome mostrato puo'
+ * portare a un'altra chiave, e la categoria finirebbe su un gruppo che non c'e'.
  */
-export function impostaCategoria(config, nome, categoria) {
-  const alias = config?.alias ?? {};
-  const chiave = chiaveDiGruppo(nome, alias);
+export function impostaCategoriaGruppo(config, chiave, categoria) {
   const categorie = { ...(config?.categorie ?? {}) };
   if (categoria) {
     categorie[chiave] = categoria;
   } else {
-    delete categorie[chiave];
-    delete categorie[impronta(nome)];
-    for (const k of Object.keys(alias)) if (impronta(alias[k]) === chiave) delete categorie[k];
+    for (const k of chiaviDelGruppo(chiave, config?.alias ?? {})) delete categorie[k];
   }
   return { ...config, categorie };
+}
+
+/** La stessa cosa partendo dal nome di una spesa, come fa il suo foglio. */
+export function impostaCategoria(config, nome, categoria) {
+  return impostaCategoriaGruppo(config, chiaveDiGruppo(nome, config?.alias ?? {}), categoria);
 }

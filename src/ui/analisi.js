@@ -14,7 +14,7 @@
 import { el, euro, euroTondo, stileTinta, iniziali, dataBreve, nomeMese, siglaMese } from './comune.js';
 import {
   perRicorrenza, unaTantum, perCategoria, perGiornoSettimana,
-  riepilogoAnalitico, andamentoMesi, flussoDiCassa, impostaCategoria,
+  riepilogoAnalitico, andamentoMesi, flussoDiCassa, impostaCategoriaGruppo,
 } from '../domain/statistiche.js';
 import { sceltaCategoria } from './categorie.js';
 import { impronta, mesiDelRegistro, meseDi, giornoDi } from '../domain/registro.js';
@@ -362,7 +362,7 @@ export function apriGruppo(gruppo, contesto) {
   // e con la copia di partenza la seconda cancellerebbe la prima.
   let attuale = config;
   const chips = sceltaCategoria(config, gruppo.categoria, (c) => {
-    attuale = impostaCategoria(attuale, gruppo.nome, c);
+    attuale = impostaCategoriaGruppo(attuale, gruppo.chiave, c);
     salvaConfig(attuale);
   });
 

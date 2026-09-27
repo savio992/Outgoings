@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {
   raggruppa, perRicorrenza, unaTantum, perCategoria, perGiornoSettimana,
   coperturaMese, riepilogoAnalitico, andamentoMesi, nomeDiGruppo, indiceGiorno,
-  categoriaDi, chiaveDiGruppo, flussoDiCassa, impostaCategoria,
+  categoriaDi, chiaveDiGruppo, flussoDiCassa, impostaCategoria, impostaCategoriaGruppo,
 } from '../src/domain/statistiche.js';
 
 let n = 0;
@@ -233,4 +233,25 @@ test('una categoria spenta non torna fuori da una grafia unita', () => {
   const accesa = impostaCategoria(spenta, 'FAMILA MEGAGEST', 'Casa');
   assert.equal(categoriaDi({ merchant: 'Famila' }, accesa), 'Casa');
   assert.equal(raggruppa([spesa('2026-08-01', 'FAMILA MEGAGEST', 3)], '2026-08', accesa)[0].categoria, 'Casa');
+});
+
+test('la riga e la classifica danno la stessa categoria anche nei mesi senza la grafia unita', () => {
+  const config = { alias: { 'famila megagest': 'Famila' }, categorie: { 'famila megagest': 'Spesa' } };
+  const soloFamila = [spesa('2026-09-01', 'Famila', 10)];
+  assert.equal(raggruppa(soloFamila, '2026-09', config)[0].categoria, 'Spesa');
+  assert.equal(categoriaDi(soloFamila[0], config), 'Spesa');
+});
+
+test('con due alias in fila la categoria va sul gruppo vero', () => {
+  const config = { alias: { a: 'B', b: 'C' } };
+  const g = raggruppa([spesa('2026-08-01', 'A', 1)], '2026-08', config)[0];
+  const scritta = impostaCategoriaGruppo(config, g.chiave, 'Svago');
+  assert.equal(raggruppa([spesa('2026-08-01', 'A', 1)], '2026-08', scritta)[0].categoria, 'Svago');
+});
+
+test('accrediti e uscite fisse non hanno categoria', () => {
+  const config = { categorie: { 'anna bianchi': 'Persone' } };
+  assert.equal(categoriaDi({ merchant: 'Anna Bianchi', entrata: true }, config), null);
+  assert.equal(categoriaDi({ merchant: 'Anna Bianchi', fissa: true }, config), null);
+  assert.equal(categoriaDi({ merchant: 'Anna Bianchi' }, config), 'Persone');
 });
